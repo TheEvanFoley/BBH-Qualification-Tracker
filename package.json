@@ -2,10 +2,10 @@
   "name": "bbh-qualification-tracker",
   "version": "1.0.0",
   "type": "module",
-  "main": "src/server.js",
+  "main": "backend/src/server.js",
   "scripts": {
-    "dev": "node --watch src/server.js",
-    "start": "node src/server.js",
+    "dev": "node --watch backend/src/server.js",
+    "start": "node backend/src/server.js",
     "test": "vitest run"
   },
   "keywords": [],

@@ -3,7 +3,7 @@ import path from "node:path";
 import sqlite3 from "sqlite3";
 import { buildBenchmarks } from "./analysis.js";
 
-const databaseDir = path.resolve("data");
+const databaseDir = path.resolve("backend", "data");
 const databasePath = path.join(databaseDir, "leaderboards.sqlite");
 
 function promisifyDb(db) {

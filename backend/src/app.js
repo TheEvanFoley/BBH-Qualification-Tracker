@@ -21,7 +21,7 @@ import {
 
 export function createApp(db) {
   const app = express();
-  const publicDir = path.resolve("public");
+  const publicDir = path.resolve("frontend", "public");
 
   app.use(express.json());
   app.use(express.static(publicDir));
