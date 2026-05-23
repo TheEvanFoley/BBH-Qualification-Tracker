@@ -16,6 +16,7 @@ const elements = {
   drilldown: document.querySelector("#drilldown"),
   weaponFilter: document.querySelector("#weapon-filter"),
   animalFilter: document.querySelector("#animal-filter"),
+  appStatus: document.querySelector("#app-status"),
 };
 
 const PAGE_SIZE = 15;
@@ -31,6 +32,12 @@ const state = {
 
 function formatNumber(value) {
   return new Intl.NumberFormat("en-US").format(value ?? 0);
+}
+
+function setAppStatus(message) {
+  if (elements.appStatus) {
+    elements.appStatus.textContent = message;
+  }
 }
 
 function setSnapshot(snapshot) {
@@ -270,6 +277,20 @@ async function refreshData() {
   }
 }
 
+async function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) {
+    setAppStatus("This browser does not support installable app features.");
+    return;
+  }
+
+  try {
+    await navigator.serviceWorker.register("/sw.js");
+    setAppStatus("Mobile app foundation is ready. Add this page to your home screen.");
+  } catch (error) {
+    setAppStatus(`Service worker setup failed: ${error.message}`);
+  }
+}
+
 elements.playerSearch.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     event.preventDefault();
@@ -299,4 +320,5 @@ elements.opportunityNext.addEventListener("click", () => {
   renderOpportunities(state.opportunities);
 });
 
+registerServiceWorker();
 loadPlayers();

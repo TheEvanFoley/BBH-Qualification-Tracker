@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#a14c1f" />
+    <title>BBH Tracker Offline</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f3efe6;
+        --ink: #241814;
+        --muted: #7a645a;
+        --accent: #a14c1f;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 1.5rem;
+        background:
+          radial-gradient(circle at top left, rgba(255, 189, 120, 0.45), transparent 32%),
+          radial-gradient(circle at top right, rgba(149, 74, 32, 0.18), transparent 25%),
+          linear-gradient(180deg, #f5f0e6 0%, #eaddca 100%);
+        color: var(--ink);
+        font-family: Georgia, "Times New Roman", serif;
+      }
+
+      main {
+        width: min(34rem, 100%);
+        padding: 1.5rem;
+        border-radius: 1.5rem;
+        background: rgba(255, 251, 245, 0.94);
+        box-shadow: 0 18px 48px rgba(73, 43, 27, 0.12);
+      }
+
+      p {
+        line-height: 1.6;
+      }
+
+      .eyebrow {
+        margin: 0;
+        color: var(--accent);
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+        font-size: 0.75rem;
+      }
+
+      h1 {
+        margin: 0.5rem 0 1rem;
+        line-height: 1.05;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">BBH-Qualification-Tracker</p>
+      <h1>You're offline right now.</h1>
+      <p>
+        The app shell is installed, but live player lookups and leaderboard refreshes still need
+        your computer-hosted backend or a deployed server.
+      </p>
+      <p class="muted">
+        Once we split this into a fuller PWA + hosted backend setup, this screen can become much
+        more useful.
+      </p>
+    </main>
+  </body>
+</html>

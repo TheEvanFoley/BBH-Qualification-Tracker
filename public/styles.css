@@ -66,6 +66,35 @@ body {
   color: var(--muted);
 }
 
+.hero-notes {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.app-status,
+.install-note {
+  margin: 0;
+}
+
+.app-status {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.55rem 0.85rem;
+  border-radius: 999px;
+  background: rgba(161, 76, 31, 0.1);
+  color: var(--accent-dark);
+  font-size: 0.92rem;
+}
+
+.install-note {
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
 .card {
   background: var(--card);
   border: 1px solid rgba(255, 255, 255, 0.8);

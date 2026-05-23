@@ -2,8 +2,19 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#a14c1f" />
+    <meta
+      name="description"
+      content="Track Big Buck Hunter qualification opportunities by player, animal, weapon, and trek."
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="BBH Tracker" />
     <title>BBH-Qualification-Tracker</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
@@ -15,6 +26,12 @@
           Scrape the live qualifier leaderboard, pick any player, and rank their
           biggest theoretical Skill gains by animal, weapon, and trek.
         </p>
+        <div class="hero-notes">
+          <p id="app-status" class="app-status">Preparing mobile companion features...</p>
+          <p class="install-note">
+            On iPhone, use Share → Add to Home Screen to keep this handy while you play.
+          </p>
+        </div>
       </section>
 
       <section class="controls card">
@@ -107,8 +124,7 @@
             </div>
           </div>
           <div id="drilldown" class="empty-state">
-            Tap a trek row to inspect the player’s top three scores and the
-            benchmark player.
+            Tap a trek row to inspect the player's top three scores and the benchmark player.
           </div>
         </section>
       </section>
@@ -123,4 +139,4 @@
 
     <script type="module" src="/app.js"></script>
   </body>
-  </html>
+</html>
