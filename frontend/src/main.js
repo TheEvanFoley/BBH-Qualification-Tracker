@@ -1,3 +1,5 @@
+import "./styles.css";
+
 const elements = {
   snapshotMeta: document.querySelector("#snapshot-meta"),
   refreshButton: document.querySelector("#refresh-button"),

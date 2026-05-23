@@ -1,4 +1,5 @@
 import express from "express";
+import fs from "node:fs";
 import path from "node:path";
 import {
   getAllPlayersForSnapshot,
@@ -21,10 +22,16 @@ import {
 
 export function createApp(db) {
   const app = express();
-  const publicDir = path.resolve("frontend", "public");
+  const frontendRootDir = path.resolve("frontend");
+  const frontendPublicDir = path.resolve(frontendRootDir, "public");
+  const frontendDistDir = path.resolve(frontendRootDir, "dist");
+  const activeFrontendDir = fs.existsSync(path.join(frontendDistDir, "index.html"))
+    ? frontendDistDir
+    : frontendRootDir;
 
   app.use(express.json());
-  app.use(express.static(publicDir));
+  app.use(express.static(activeFrontendDir));
+  app.use(express.static(frontendPublicDir));
 
   app.get("/api/health", async (_request, response) => {
     const snapshot = await getLatestSnapshot(db);
@@ -164,7 +171,7 @@ export function createApp(db) {
   });
 
   app.use((_request, response) => {
-    response.sendFile(path.join(publicDir, "index.html"));
+    response.sendFile(path.join(activeFrontendDir, "index.html"));
   });
 
   return app;

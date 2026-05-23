@@ -4,8 +4,11 @@
   "type": "module",
   "main": "backend/src/server.js",
   "scripts": {
+    "build": "vite build --config frontend/vite.config.js",
     "dev": "node --watch backend/src/server.js",
-    "start": "node backend/src/server.js",
+    "dev:backend": "node --watch backend/src/server.js",
+    "dev:frontend": "vite --config frontend/vite.config.js",
+    "start": "npm run build && node backend/src/server.js",
     "test": "vitest run"
   },
   "keywords": [],
@@ -19,6 +22,7 @@
   },
   "devDependencies": {
     "supertest": "^7.2.2",
+    "vite": "^7.1.11",
     "vitest": "^4.1.7"
   }
 }
