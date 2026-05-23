@@ -104,20 +104,31 @@ button {
   padding: 1.2rem 0 0.5rem;
 }
 
-.topbar h1,
+.topbar h1 {
+  margin: 0;
+  line-height: 1.08;
+  font-family:
+    "Segoe UI",
+    "Inter",
+    system-ui,
+    sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
 .hero-card h2,
 .panel-heading h2,
 .detail-panel h2,
 .opportunity-card h3 {
   margin: 0;
-  line-height: 1;
+  line-height: 1.08;
   font-family:
-    "Aachen",
-    "Impact",
-    "Arial Narrow",
+    "Segoe UI",
+    "Inter",
+    system-ui,
     sans-serif;
-  font-weight: 700;
-  letter-spacing: 0.01em;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
 .topbar h1 {
@@ -159,9 +170,10 @@ button {
 .hero-card__copy h2 {
   font-size: clamp(2rem, 5vw, 3.6rem);
   color: #fffef4;
+  text-wrap: balance;
 }
 
-.hero-card__copy p:last-child {
+.hero-card__copy p {
   margin: 0;
   max-width: 58ch;
   color: var(--ink-soft);
@@ -224,6 +236,7 @@ button {
   margin-top: 0.25rem;
   font-size: clamp(1.5rem, 3vw, 2.35rem);
   color: #fffef4;
+  text-wrap: balance;
 }
 
 .summary-badges {
@@ -237,6 +250,7 @@ button {
   display: inline-flex;
   align-items: center;
   padding: 0.5rem 0.85rem;
+  border: 1px solid transparent;
   border-radius: 999px;
   font-size: 0.82rem;
   font-weight: 700;
@@ -246,26 +260,31 @@ button {
 .status-pill--neutral {
   background: rgba(255, 255, 255, 0.08);
   color: var(--ink-soft);
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 .status-pill--gold {
   background: rgba(229, 187, 21, 0.18);
   color: #ffe58b;
+  border-color: rgba(229, 187, 21, 0.28);
 }
 
 .status-pill--orange {
   background: rgba(229, 140, 21, 0.18);
   color: #ffd2a4;
+  border-color: rgba(229, 140, 21, 0.38);
 }
 
 .status-pill--blue {
   background: rgba(31, 96, 140, 0.22);
   color: #c7e6ff;
+  border-color: rgba(103, 178, 255, 0.34);
 }
 
 .status-pill--green {
   background: rgba(100, 139, 58, 0.2);
   color: #daefbb;
+  border-color: rgba(137, 191, 74, 0.38);
 }
 
 .primary-button,
@@ -399,6 +418,14 @@ button {
 
 .player-card__top {
   justify-content: space-between;
+  align-items: flex-start;
+}
+
+.rank-pills {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .stat-chip {
@@ -408,6 +435,7 @@ button {
   padding: 0.7rem 0.85rem;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .stat-chip span {
@@ -420,6 +448,24 @@ button {
 .stat-chip strong {
   font-size: 0.95rem;
   line-height: 1.35;
+}
+
+.stat-chip--green {
+  background: rgba(100, 139, 58, 0.16);
+  border-color: rgba(137, 191, 74, 0.25);
+}
+
+.stat-chip--green strong {
+  color: #daefbb;
+}
+
+.stat-chip--orange {
+  background: rgba(229, 140, 21, 0.16);
+  border-color: rgba(229, 140, 21, 0.28);
+}
+
+.stat-chip--orange strong {
+  color: #ffd2a4;
 }
 
 .summary-strip {
@@ -527,6 +573,17 @@ button {
   font-size: 1.15rem;
 }
 
+.gain-badge--hero {
+  min-width: 10rem;
+  justify-items: center;
+  background: rgba(229, 187, 21, 0.18);
+  border: 1px solid rgba(229, 187, 21, 0.28);
+}
+
+.gain-badge--hero strong {
+  font-size: 1.35rem;
+}
+
 .pagination-bar {
   justify-content: space-between;
   margin-top: 0.25rem;
@@ -543,11 +600,16 @@ button {
   gap: 1rem;
 }
 
+.detail-panel {
+  padding-top: 0.35rem;
+}
+
 .detail-panel__hero {
   display: flex;
   gap: 1rem;
   align-items: flex-start;
   justify-content: space-between;
+  margin-top: 0.35rem;
 }
 
 .detail-grid {
@@ -563,12 +625,19 @@ button {
   background: rgba(11, 21, 31, 0.85);
 }
 
+.detail-card__name {
+  color: #fffef4;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
 .detail-card strong {
   font-size: 1.25rem;
 }
 
 .detail-card span {
   color: var(--ink-soft);
+  line-height: 1.5;
 }
 
 .score-pill {
@@ -580,6 +649,18 @@ button {
   background: rgba(229, 187, 21, 0.12);
   color: #ffe8a2;
   font-weight: 700;
+}
+
+.score-pill.score-pill--player-focus {
+  background: rgba(100, 139, 58, 0.22);
+  color: #daefbb;
+  border: 1px solid rgba(137, 191, 74, 0.36);
+}
+
+.score-pill.score-pill--benchmark-focus {
+  background: rgba(229, 140, 21, 0.2);
+  color: #ffd2a4;
+  border: 1px solid rgba(229, 140, 21, 0.38);
 }
 
 .empty-panel {
@@ -613,6 +694,10 @@ button {
   }
 
   .summary-badges {
+    justify-content: flex-start;
+  }
+
+  .rank-pills {
     justify-content: flex-start;
   }
 }

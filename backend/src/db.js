@@ -3,7 +3,10 @@ import path from "node:path";
 import sqlite3 from "sqlite3";
 import { buildBenchmarks } from "./analysis.js";
 
-const databaseDir = path.resolve("backend", "data");
+const configuredDatabaseDir = process.env.DATABASE_DIR?.trim();
+const databaseDir = configuredDatabaseDir
+  ? path.resolve(configuredDatabaseDir)
+  : path.resolve("backend", "data");
 const databasePath = path.join(databaseDir, "leaderboards.sqlite");
 
 function promisifyDb(db) {
@@ -93,6 +96,7 @@ export async function createDatabase() {
       name TEXT NOT NULL,
       location TEXT NOT NULL,
       skill_rank INTEGER,
+      wildcard_rank INTEGER,
       global_skill_score INTEGER,
       global_wildcard_score INTEGER,
       accuracy REAL,
@@ -120,6 +124,8 @@ export async function createDatabase() {
       weapon TEXT NOT NULL,
       trek TEXT NOT NULL,
       best_score INTEGER NOT NULL,
+      benchmark_top_three_scores TEXT,
+      benchmark_top_three_total INTEGER,
       benchmark_player_id TEXT NOT NULL,
       benchmark_player_name TEXT NOT NULL,
       PRIMARY KEY (snapshot_id, animal, weapon, trek),
@@ -142,6 +148,21 @@ export async function createDatabase() {
 
   if (!playerColumnNames.has("external_player_id")) {
     await db.exec(`ALTER TABLE players ADD COLUMN external_player_id TEXT`);
+  }
+
+  if (!playerColumnNames.has("wildcard_rank")) {
+    await db.exec(`ALTER TABLE players ADD COLUMN wildcard_rank INTEGER`);
+  }
+
+  const benchmarkColumns = await db.all(`PRAGMA table_info(trek_benchmarks)`);
+  const benchmarkColumnNames = new Set(benchmarkColumns.map((column) => column.name));
+
+  if (!benchmarkColumnNames.has("benchmark_top_three_scores")) {
+    await db.exec(`ALTER TABLE trek_benchmarks ADD COLUMN benchmark_top_three_scores TEXT`);
+  }
+
+  if (!benchmarkColumnNames.has("benchmark_top_three_total")) {
+    await db.exec(`ALTER TABLE trek_benchmarks ADD COLUMN benchmark_top_three_total INTEGER`);
   }
 
   return db;
@@ -174,12 +195,13 @@ export async function saveSnapshot(db, snapshotPayload) {
             name,
             location,
             skill_rank,
+            wildcard_rank,
             global_skill_score,
             global_wildcard_score,
             accuracy,
             country_code,
             external_player_id
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           snapshotId,
@@ -187,6 +209,7 @@ export async function saveSnapshot(db, snapshotPayload) {
           player.name,
           player.location,
           player.skillRank,
+          player.wildcardRank,
           player.globalSkillScore,
           player.globalWildcardScore,
           player.accuracy,
@@ -238,9 +261,11 @@ export async function saveSnapshot(db, snapshotPayload) {
             weapon,
             trek,
             best_score,
+            benchmark_top_three_scores,
+            benchmark_top_three_total,
             benchmark_player_id,
             benchmark_player_name
-          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           snapshotId,
@@ -248,6 +273,8 @@ export async function saveSnapshot(db, snapshotPayload) {
           benchmark.weapon,
           benchmark.trek,
           benchmark.bestScore,
+          JSON.stringify(benchmark.benchmarkTopThreeScores ?? []),
+          benchmark.benchmarkTopThreeTotal ?? null,
           benchmark.benchmarkPlayerId,
           benchmark.benchmarkPlayerName,
         ],
@@ -275,16 +302,18 @@ export async function savePlayersToSnapshot(db, snapshotId, players) {
             name,
             location,
             skill_rank,
+            wildcard_rank,
             global_skill_score,
             global_wildcard_score,
             accuracy,
             country_code,
             external_player_id
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(snapshot_id, id) DO UPDATE SET
             name = excluded.name,
             location = excluded.location,
             skill_rank = excluded.skill_rank,
+            wildcard_rank = excluded.wildcard_rank,
             global_skill_score = excluded.global_skill_score,
             global_wildcard_score = excluded.global_wildcard_score,
             accuracy = excluded.accuracy,
@@ -297,6 +326,7 @@ export async function savePlayersToSnapshot(db, snapshotId, players) {
           player.name,
           player.location,
           player.skillRank,
+          player.wildcardRank,
           player.globalSkillScore,
           player.globalWildcardScore,
           player.accuracy,
@@ -383,9 +413,11 @@ export async function replaceBenchmarksForSnapshot(db, snapshotId, benchmarks) {
             weapon,
             trek,
             best_score,
+            benchmark_top_three_scores,
+            benchmark_top_three_total,
             benchmark_player_id,
             benchmark_player_name
-          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           snapshotId,
@@ -393,6 +425,8 @@ export async function replaceBenchmarksForSnapshot(db, snapshotId, benchmarks) {
           benchmark.weapon,
           benchmark.trek,
           benchmark.bestScore,
+          JSON.stringify(benchmark.benchmarkTopThreeScores ?? []),
+          benchmark.benchmarkTopThreeTotal ?? null,
           benchmark.benchmarkPlayerId,
           benchmark.benchmarkPlayerName,
         ],
@@ -443,6 +477,7 @@ export async function getPlayers(db, snapshotId, search = "") {
       name,
       location,
       skill_rank AS skillRank,
+      wildcard_rank AS wildcardRank,
       global_skill_score AS globalSkillScore,
       global_wildcard_score AS globalWildcardScore,
       accuracy,
@@ -469,6 +504,7 @@ export async function getAllPlayersForSnapshot(db, snapshotId) {
         name,
         location,
         skill_rank AS skillRank,
+        wildcard_rank AS wildcardRank,
         global_skill_score AS globalSkillScore,
         global_wildcard_score AS globalWildcardScore,
         accuracy,
@@ -531,12 +567,21 @@ export async function getBenchmarksForSnapshot(db, snapshotId) {
         weapon,
         trek,
         best_score AS bestScore,
+        benchmark_top_three_scores AS benchmarkTopThreeScoresJson,
+        benchmark_top_three_total AS benchmarkTopThreeTotal,
         benchmark_player_id AS benchmarkPlayerId,
         benchmark_player_name AS benchmarkPlayerName
       FROM trek_benchmarks
       WHERE snapshot_id = ?
     `,
     [snapshotId],
+  ).then((rows) =>
+    rows.map((row) => ({
+      ...row,
+      benchmarkTopThreeScores: row.benchmarkTopThreeScoresJson
+        ? JSON.parse(row.benchmarkTopThreeScoresJson)
+        : [],
+    })),
   );
 }
 

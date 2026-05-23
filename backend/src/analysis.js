@@ -95,6 +95,8 @@ export function buildBenchmarks(runs, playersById = new Map()) {
         weapon: run.weapon,
         trek: run.trek,
         bestScore: run.score,
+        benchmarkTopThreeScores: [run.score],
+        benchmarkTopThreeTotal: run.score,
         benchmarkPlayerId: run.playerId,
         benchmarkPlayerName: player?.name ?? run.playerId,
       });
@@ -136,6 +138,7 @@ export function computeOpportunities({
 
       return {
         playerId,
+        selectedPlayerName: playersById.get(playerId)?.name ?? "Selected Hunter",
         animal: benchmark.animal,
         weapon: benchmark.weapon,
         trek: benchmark.trek,
@@ -144,6 +147,13 @@ export function computeOpportunities({
         playerTopThreeScores: topThree,
         playerTopThreeTotal: topThreeTotal,
         benchmarkScore: benchmark.bestScore,
+        benchmarkTopThreeScores: benchmark.benchmarkTopThreeScores ?? [benchmark.bestScore],
+        benchmarkTopThreeTotal:
+          benchmark.benchmarkTopThreeTotal ??
+          (benchmark.benchmarkTopThreeScores ?? [benchmark.bestScore]).reduce(
+            (sum, score) => sum + score,
+            0,
+          ),
         benchmarkPlayerId: benchmark.benchmarkPlayerId,
         benchmarkPlayerName: benchmark.benchmarkPlayerName,
       };

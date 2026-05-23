@@ -78,8 +78,10 @@ function parseSkillCell(text) {
 }
 
 function parseWildcardCell(text) {
+  const rankMatch = text.match(/^\D*(\d+)\s*\(([\d,]+)\)/);
   const scoreMatch = text.match(/\(([\d,]+)\)/);
   return {
+    wildcardRank: rankMatch ? Number.parseInt(rankMatch[1], 10) : null,
     globalWildcardScore: scoreMatch ? toInt(scoreMatch[1]) : null,
   };
 }
@@ -240,11 +242,14 @@ async function scrapeBenchmarks(page) {
 
         const benchmarkRun = trekRuns[0];
         if (benchmarkRun) {
+          const benchmarkTopThreeScores = trekRuns.slice(0, 3).map((run) => run.score);
           benchmarks.push({
             animal: adventure.animal,
             weapon,
             trek: `Trek ${trekNumber}`,
             bestScore: benchmarkRun.score,
+            benchmarkTopThreeScores,
+            benchmarkTopThreeTotal: benchmarkTopThreeScores.reduce((sum, score) => sum + score, 0),
             benchmarkPlayerId: benchmarkPlayer.id,
             benchmarkPlayerName: benchmarkPlayer.name,
           });
@@ -352,6 +357,7 @@ export async function scrapePlayersBySearch(searchTerm) {
           countryCode: player.country,
           externalPlayerId: String(player.id),
           skillRank: toInt(player.overall_rank),
+          wildcardRank: toInt(player.wildcard_rank),
           globalSkillScore: toInt(player.overall_score),
           globalWildcardScore: toInt(player.cumulative_score),
           accuracy: toFloat(player.accuracy),

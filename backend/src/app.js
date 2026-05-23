@@ -42,37 +42,44 @@ export function createApp(db) {
   });
 
   app.get("/api/players", async (request, response) => {
-    const snapshot = await getLatestSnapshot(db);
-    if (!snapshot) {
-      response.status(404).json({
-        error: "No snapshot available yet. Run a refresh first.",
-      });
-      return;
-    }
-
-    const search = String(request.query.search ?? "");
-    let players = await getPlayers(db, snapshot.id, search);
-
-    if (search.trim() && String(request.query.live ?? "0") === "1") {
-      const livePlayers = await scrapePlayersBySearch(search);
-      if (livePlayers.length > 0) {
-        await savePlayersToSnapshot(db, snapshot.id, livePlayers);
-        const playersById = new Map(players.map((player) => [player.id, player]));
-        for (const player of livePlayers) {
-          playersById.set(player.id, player);
-        }
-        players = [...playersById.values()].sort((left, right) => {
-          const leftRank = left.skillRank ?? Number.MAX_SAFE_INTEGER;
-          const rightRank = right.skillRank ?? Number.MAX_SAFE_INTEGER;
-          return leftRank - rightRank || left.name.localeCompare(right.name);
+    try {
+      const snapshot = await getLatestSnapshot(db);
+      if (!snapshot) {
+        response.status(404).json({
+          error: "No snapshot available yet. Run a refresh first.",
         });
+        return;
       }
-    }
 
-    response.json({
-      snapshot,
-      players,
-    });
+      const search = String(request.query.search ?? "");
+      let players = await getPlayers(db, snapshot.id, search);
+
+      if (search.trim() && String(request.query.live ?? "0") === "1") {
+        const livePlayers = await scrapePlayersBySearch(search);
+        if (livePlayers.length > 0) {
+          await savePlayersToSnapshot(db, snapshot.id, livePlayers);
+          const playersById = new Map(players.map((player) => [player.id, player]));
+          for (const player of livePlayers) {
+            playersById.set(player.id, player);
+          }
+          players = [...playersById.values()].sort((left, right) => {
+            const leftRank = left.skillRank ?? Number.MAX_SAFE_INTEGER;
+            const rightRank = right.skillRank ?? Number.MAX_SAFE_INTEGER;
+            return leftRank - rightRank || left.name.localeCompare(right.name);
+          });
+        }
+      }
+
+      response.json({
+        snapshot,
+        players,
+      });
+    } catch (error) {
+      response.status(500).json({
+        error: "Failed to load players.",
+        details: error.message,
+      });
+    }
   });
 
   app.post("/api/refresh", async (request, response) => {

@@ -154,6 +154,8 @@ describe("analysis helpers", () => {
         weapon: "Gun",
         trek: "Trek 3",
         bestScore: 18011,
+        benchmarkTopThreeScores: [18011],
+        benchmarkTopThreeTotal: 18011,
         benchmarkPlayerId: playerId,
         benchmarkPlayerName: "Trevor Gartner",
       },

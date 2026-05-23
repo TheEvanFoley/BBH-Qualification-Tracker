@@ -11,6 +11,14 @@ function formatNumber(value) {
   return new Intl.NumberFormat("en-US").format(value ?? 0);
 }
 
+function formatWildcardRank(rank) {
+  return rank != null ? `#${rank}` : "N/A";
+}
+
+function normalizeThreeScores(scores = []) {
+  return [...scores, 0, 0, 0].slice(0, 3);
+}
+
 async function fetchJson(url, options) {
   const response = await fetch(url, options);
   const data = await response.json();
@@ -26,9 +34,9 @@ function StatusPill({ tone = "neutral", children }) {
   return <span className={`status-pill status-pill--${tone}`}>{children}</span>;
 }
 
-function StatChip({ label, value }) {
+function StatChip({ label, value, tone = "neutral" }) {
   return (
-    <div className="stat-chip">
+    <div className={`stat-chip stat-chip--${tone}`}>
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
@@ -61,12 +69,21 @@ function PlayerCard({ player, isActive, onSelect }) {
     >
       <div className="player-card__top">
         <strong>{player.name}</strong>
-        <StatusPill tone="gold">#{player.skillRank ?? "-"}</StatusPill>
+        <div className="rank-pills">
+          <StatusPill tone="green">Skill #{player.skillRank ?? "-"}</StatusPill>
+          <StatusPill tone="orange">
+            Wildcard {formatWildcardRank(player.wildcardRank)}
+          </StatusPill>
+        </div>
       </div>
       <p>{player.location}</p>
       <div className="player-card__stats">
-        <StatChip label="Skill" value={formatNumber(player.globalSkillScore)} />
-        <StatChip label="Wildcard" value={formatNumber(player.globalWildcardScore)} />
+        <StatChip label="Skill" value={formatNumber(player.globalSkillScore)} tone="green" />
+        <StatChip
+          label="Wildcard"
+          value={formatNumber(player.globalWildcardScore)}
+          tone="orange"
+        />
       </div>
     </button>
   );
@@ -82,9 +99,7 @@ function OpportunityCard({ opportunity, isActive, onSelect }) {
       <div className="opportunity-card__header">
         <div>
           <p className="eyebrow">{opportunity.animal}</p>
-          <h3>
-            {opportunity.weapon} · {opportunity.trek}
-          </h3>
+          <h3>{`${opportunity.weapon} / ${opportunity.trek}`}</h3>
         </div>
         <div className="gain-badge">
           <span>Gain</span>
@@ -94,11 +109,11 @@ function OpportunityCard({ opportunity, isActive, onSelect }) {
 
       <div className="opportunity-card__stats">
         <StatChip label="3rd Best" value={formatNumber(opportunity.playerThirdBestScore)} />
-        <StatChip label="Benchmark" value={formatNumber(opportunity.benchmarkScore)} />
+        <StatChip label="Top Score" value={formatNumber(opportunity.benchmarkScore)} />
       </div>
 
       <p className="opportunity-card__meta">
-        Benchmark player: <strong>{opportunity.benchmarkPlayerName}</strong>
+        Top hunter: <strong>{opportunity.benchmarkPlayerName}</strong>
       </p>
     </button>
   );
@@ -108,29 +123,45 @@ function Drilldown({ opportunity }) {
   if (!opportunity) {
     return (
       <div className="empty-panel">
-        Tap an opportunity card to inspect your current top-three scores and the benchmark.
+        Tap a trek row to compare your counted scores against the current top hunter.
       </div>
     );
   }
+
+  const playerScores = normalizeThreeScores(opportunity.playerTopThreeScores);
+  const benchmarkScores = normalizeThreeScores(opportunity.benchmarkTopThreeScores);
+  const selectedHunterName = opportunity.selectedPlayerName ?? "Selected Hunter";
 
   return (
     <div className="detail-panel">
       <div className="detail-panel__hero">
         <div>
           <p className="eyebrow">{opportunity.animal}</p>
-          <h2>
-            {opportunity.weapon} · {opportunity.trek}
-          </h2>
+          <h2>{`${opportunity.weapon} / ${opportunity.trek}`}</h2>
         </div>
-        <StatusPill tone="blue">Target Trek</StatusPill>
+        <div className="gain-badge gain-badge--hero">
+          <span>Single Trek Gain</span>
+          <strong>{formatNumber(opportunity.theoreticalGain)}</strong>
+        </div>
       </div>
 
       <div className="detail-grid">
         <div className="detail-card">
-          <p className="detail-card__label">Top Three Counted Scores</p>
+          <p className="detail-card__label">Current Skill Total</p>
+          <div className="detail-card__name">{selectedHunterName}</div>
+          <strong>{formatNumber(opportunity.playerTopThreeTotal)}</strong>
+          <span>Current counted total for this trek.</span>
+        </div>
+
+        <div className="detail-card">
+          <p className="detail-card__label">Current Skill Scores</p>
+          <div className="detail-card__name">{selectedHunterName}</div>
           <div className="score-strip">
-            {opportunity.playerTopThreeScores.map((score, index) => (
-              <span key={`${opportunity.trek}-${index}`} className="score-pill">
+            {playerScores.map((score, index) => (
+              <span
+                key={`${opportunity.trek}-player-${index}`}
+                className={`score-pill ${index === 2 ? "score-pill--player-focus" : ""}`}
+              >
                 {formatNumber(score)}
               </span>
             ))}
@@ -138,19 +169,26 @@ function Drilldown({ opportunity }) {
         </div>
 
         <div className="detail-card">
-          <p className="detail-card__label">Current Counted Total</p>
-          <strong>{formatNumber(opportunity.playerTopThreeTotal)}</strong>
+          <p className="detail-card__label">Top Hunter Total</p>
+          <div className="detail-card__name">{opportunity.benchmarkPlayerName}</div>
+          <strong>{formatNumber(opportunity.benchmarkTopThreeTotal)}</strong>
+          <span>Current counted total for the top hunter on this trek.</span>
         </div>
 
         <div className="detail-card">
-          <p className="detail-card__label">Third-Best Run</p>
-          <strong>{formatNumber(opportunity.playerThirdBestScore)}</strong>
-        </div>
-
-        <div className="detail-card">
-          <p className="detail-card__label">Benchmark</p>
-          <strong>{formatNumber(opportunity.benchmarkScore)}</strong>
-          <span>{opportunity.benchmarkPlayerName}</span>
+          <p className="detail-card__label">Top Hunter Scores</p>
+          <div className="detail-card__name">{opportunity.benchmarkPlayerName}</div>
+          <div className="score-strip">
+            {benchmarkScores.map((score, index) => (
+              <span
+                key={`${opportunity.trek}-benchmark-${index}`}
+                className={`score-pill ${index === 0 ? "score-pill--benchmark-focus" : ""}`}
+              >
+                {formatNumber(score)}
+              </span>
+            ))}
+          </div>
+          <span>Best single-run benchmark highlighted in orange.</span>
         </div>
       </div>
     </div>
@@ -169,7 +207,7 @@ export function App({ serviceWorkerState }) {
   const [opportunityPage, setOpportunityPage] = useState(1);
   const [playersMessage, setPlayersMessage] = useState("");
   const [opportunitiesMessage, setOpportunitiesMessage] = useState(
-    "Pick a player to load ranked opportunities.",
+    "Pick a player to load the full skill score breakdown.",
   );
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -213,12 +251,16 @@ export function App({ serviceWorkerState }) {
     }
   }
 
-  async function loadOpportunities(nextPlayer = selectedPlayer, nextWeapon = weapon, nextAnimal = animal) {
+  async function loadOpportunities(
+    nextPlayer = selectedPlayer,
+    nextWeapon = weapon,
+    nextAnimal = animal,
+  ) {
     if (!nextPlayer) {
       return;
     }
 
-    setOpportunitiesMessage("Loading opportunities...");
+    setOpportunitiesMessage("Loading skill score breakdown...");
 
     try {
       const queryWeapon = encodeURIComponent(nextWeapon);
@@ -235,7 +277,7 @@ export function App({ serviceWorkerState }) {
         setSelectedOpportunityKey(null);
         setOpportunitiesMessage(
           data.opportunities.length === 0
-            ? "No opportunities available for this player in the current snapshot."
+            ? "No skill score breakdown is available for this player in the current snapshot."
             : "",
         );
       });
@@ -250,6 +292,11 @@ export function App({ serviceWorkerState }) {
 
     try {
       await fetchJson("/api/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      await fetchJson("/api/refresh-benchmarks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
@@ -295,11 +342,17 @@ export function App({ serviceWorkerState }) {
       <main className="dashboard">
         <section className="hero-card panel">
           <div className="hero-card__copy">
-            <p className="eyebrow">Live Worlds Push</p>
-            <h2>See where your biggest gains still live while you are on the machine.</h2>
+            <p className="eyebrow">How Worlds Qualification Works</p>
+            <h2>Skills gets you in first. Wildcard is the backup race after that.</h2>
             <p>
-              Search yourself, compare against benchmark trek scores, and keep the best grind path
-              in front of you on your phone.
+              Your Skills score is built from the top three runs you have on each trek, with the
+              top 64 Skills players qualifying for Worlds first. After those 64 are locked in, the
+              next 64 players qualify by Wildcard score, which is your broader cumulative total.
+            </p>
+            <p>
+              Use this tracker to compare your third counted score on each trek against the current
+              top hunter&apos;s best score so you can see where the most Skills ground is still on
+              the table.
             </p>
           </div>
 
@@ -312,7 +365,12 @@ export function App({ serviceWorkerState }) {
                   : "No snapshot yet"}
               </strong>
             </div>
-            <button type="button" className="primary-button" onClick={refreshData} disabled={isRefreshing}>
+            <button
+              type="button"
+              className="primary-button"
+              onClick={refreshData}
+              disabled={isRefreshing}
+            >
               {isRefreshing ? "Refreshing..." : "Refresh Live Data"}
             </button>
           </div>
@@ -325,7 +383,6 @@ export function App({ serviceWorkerState }) {
                 <p className="eyebrow">Player Search</p>
                 <h2>Find a Hunter</h2>
               </div>
-              <StatusPill tone="blue">Live Lookup</StatusPill>
             </div>
 
             <div className="search-panel">
@@ -373,14 +430,14 @@ export function App({ serviceWorkerState }) {
           <section className="panel stack">
             <div className="panel-heading">
               <div>
-                <p className="eyebrow">Opportunity Ranking</p>
-                <h2>{selectedPlayer ? selectedPlayer.name : "Select a player"}</h2>
+                <p className="eyebrow">Skills Focus</p>
+                <h2>{selectedPlayer ? `${selectedPlayer.name} Skill Score Breakdown` : "Skill Score Breakdown"}</h2>
               </div>
               {selectedPlayer ? (
                 <div className="summary-badges">
-                  <StatusPill tone="gold">Skill #{selectedPlayer.skillRank ?? "-"}</StatusPill>
+                  <StatusPill tone="green">Skill #{selectedPlayer.skillRank ?? "-"}</StatusPill>
                   <StatusPill tone="orange">
-                    {formatNumber(selectedPlayer.globalSkillScore)} skill
+                    Wildcard {formatWildcardRank(selectedPlayer.wildcardRank)}
                   </StatusPill>
                 </div>
               ) : null}
@@ -388,10 +445,15 @@ export function App({ serviceWorkerState }) {
 
             {selectedPlayer ? (
               <div className="summary-strip">
-                <StatChip label="Skill Score" value={formatNumber(selectedPlayer.globalSkillScore)} />
+                <StatChip
+                  label="Skill Score"
+                  value={formatNumber(selectedPlayer.globalSkillScore)}
+                  tone="green"
+                />
                 <StatChip
                   label="Wildcard Score"
                   value={formatNumber(selectedPlayer.globalWildcardScore)}
+                  tone="orange"
                 />
                 <StatChip label="Location" value={selectedPlayer.location} />
               </div>
@@ -445,7 +507,7 @@ export function App({ serviceWorkerState }) {
                     Previous
                   </button>
                   <p>
-                    Page {currentPage} of {totalPages} · {opportunities.length} total
+                    Page {currentPage} of {totalPages} | {opportunities.length} total
                   </p>
                   <button
                     type="button"
@@ -465,9 +527,8 @@ export function App({ serviceWorkerState }) {
           <div className="panel-heading">
             <div>
               <p className="eyebrow">Drilldown</p>
-              <h2>Why This Trek Matters</h2>
+              <h2>Trek Details</h2>
             </div>
-            <StatusPill tone="green">In-Session Companion</StatusPill>
           </div>
           <Drilldown opportunity={selectedOpportunity} />
         </section>
