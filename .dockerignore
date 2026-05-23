@@ -1,6 +1,7 @@
-node_modules/
-backend/data/
-frontend/dist/
+node_modules
+backend/data
+frontend/dist
+.git
 .DS_Store
 Thumbs.db
 npm-debug.log*

@@ -2,10 +2,13 @@
   "name": "bbh-qualification-tracker",
   "version": "1.0.0",
   "type": "module",
-  "main": "src/server.js",
+  "main": "backend/src/server.js",
   "scripts": {
-    "dev": "node --watch src/server.js",
-    "start": "node src/server.js",
+    "build": "vite build --config frontend/vite.config.js",
+    "dev": "node --watch backend/src/server.js",
+    "dev:backend": "node --watch backend/src/server.js",
+    "dev:frontend": "vite --config frontend/vite.config.js",
+    "start": "npm run build && node backend/src/server.js",
     "test": "vitest run"
   },
   "keywords": [],
@@ -15,10 +18,14 @@
   "dependencies": {
     "express": "^5.2.1",
     "playwright": "^1.60.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
     "sqlite3": "^6.0.1"
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "^5.2.0",
     "supertest": "^7.2.2",
+    "vite": "^7.1.11",
     "vitest": "^4.1.7"
   }
 }
