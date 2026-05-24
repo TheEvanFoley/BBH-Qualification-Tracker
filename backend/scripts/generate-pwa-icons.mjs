@@ -5,12 +5,12 @@ import { chromium } from "playwright";
 const publicDir = path.resolve("frontend", "public");
 const sourceImage = path.join(publicDir, "icon-source.png");
 const jobs = [
-  { output: "favicon-16.png", size: 16 },
-  { output: "favicon-32.png", size: 32 },
-  { output: "icon-192.png", size: 192 },
-  { output: "icon-512.png", size: 512 },
-  { output: "icon-maskable-512.png", size: 512 },
-  { output: "apple-touch-icon.png", size: 180 },
+  { output: "favicon-16-v2.png", size: 16 },
+  { output: "favicon-32-v2.png", size: 32 },
+  { output: "icon-192-v2.png", size: 192 },
+  { output: "icon-512-v2.png", size: 512 },
+  { output: "icon-maskable-512-v2.png", size: 512 },
+  { output: "apple-touch-icon-v2.png", size: 180 },
 ];
 
 const browser = await chromium.launch({ headless: true });

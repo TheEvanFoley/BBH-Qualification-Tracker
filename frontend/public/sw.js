@@ -1,14 +1,14 @@
-const CACHE_NAME = "bbh-qualification-tracker-v2";
+const CACHE_NAME = "bbh-qualification-tracker-v3";
 const APP_SHELL = [
   "/",
   "/offline.html",
-  "/manifest.webmanifest",
-  "/icon.svg",
-  "/icon-maskable.svg",
-  "/icon-192.png",
-  "/icon-512.png",
-  "/icon-maskable-512.png",
-  "/apple-touch-icon.png",
+  "/manifest.webmanifest?v=2",
+  "/favicon-16-v2.png",
+  "/favicon-32-v2.png",
+  "/icon-192-v2.png",
+  "/icon-512-v2.png",
+  "/icon-maskable-512-v2.png",
+  "/apple-touch-icon-v2.png",
 ];
 
 self.addEventListener("install", (event) => {
