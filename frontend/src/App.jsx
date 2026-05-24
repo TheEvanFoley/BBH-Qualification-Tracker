@@ -19,6 +19,9 @@ function normalizeThreeScores(scores = []) {
   return [...scores, 0, 0, 0].slice(0, 3);
 }
 
+const INSTALL_PANEL_DISMISSED_KEY = "bbh-install-panel-dismissed-v2";
+const REFRESH_PROGRESS_DISMISSED_KEY = "bbh-refresh-progress-dismissed-v2";
+
 async function fetchJson(url, options) {
   const response = await fetch(url, options);
   const data = await response.json();
@@ -35,18 +38,70 @@ function mergeRefreshStatus(current, next) {
     return next;
   }
 
+  const currentStartedAt = current.startedAt ? Date.parse(current.startedAt) : 0;
+  const nextStartedAt = next.startedAt ? Date.parse(next.startedAt) : 0;
+
   if (current.status === "running" && next.status === "idle") {
     return current;
   }
-
-  const currentStartedAt = current.startedAt ? Date.parse(current.startedAt) : 0;
-  const nextStartedAt = next.startedAt ? Date.parse(next.startedAt) : 0;
 
   if (current.status === "running" && nextStartedAt < currentStartedAt) {
     return current;
   }
 
+  if (
+    current.status === "running" &&
+    next.status === "running" &&
+    (next.progress ?? 0) > (current.progress ?? 0)
+  ) {
+    return next;
+  }
+
+  if (
+    current.status === "running" &&
+    next.status === "running" &&
+    current.phase === "starting" &&
+    next.phase !== "starting"
+  ) {
+    return next;
+  }
+
+  if (
+    current.status === "running" &&
+    (next.status === "completed" || next.status === "failed")
+  ) {
+    return next;
+  }
+
   return next;
+}
+
+function readStoredValue(key) {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredValue(key, value) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    if (value == null) {
+      window.localStorage.removeItem(key);
+    } else {
+      window.localStorage.setItem(key, value);
+    }
+  } catch {
+    // Ignore localStorage issues and keep the UI usable.
+  }
 }
 
 function StatusPill({ tone = "neutral", children }) {
@@ -220,6 +275,7 @@ function getInstallContext() {
     return {
       isStandalone: false,
       isIos: false,
+      browserName: "browser",
     };
   }
 
@@ -229,15 +285,70 @@ function getInstallContext() {
   const navigatorStandalone = window.navigator.standalone === true;
   const userAgent = window.navigator.userAgent ?? "";
   const isIos = /iPhone|iPad|iPod/i.test(userAgent);
+  const isEdge = /Edg\//i.test(userAgent);
+  const isChrome = /Chrome\//i.test(userAgent) && !isEdge;
+  const isFirefox = /Firefox\//i.test(userAgent);
+  const isSafari = /Safari\//i.test(userAgent) && !isChrome && !isEdge;
+
+  let browserName = "browser";
+  if (isSafari) {
+    browserName = "Safari";
+  } else if (isChrome) {
+    browserName = "Chrome";
+  } else if (isEdge) {
+    browserName = "Edge";
+  } else if (isFirefox) {
+    browserName = "Firefox";
+  }
 
   return {
     isStandalone: standaloneMedia || navigatorStandalone,
     isIos,
+    browserName,
   };
 }
 
-function InstallPanel({ installState, onInstall, isSharePending, onShare }) {
-  const { isStandalone, isIos, canInstall, isDismissed } = installState;
+function getInstallGuide(installState) {
+  const { isIos, canInstall, browserName } = installState;
+
+  if (isIos) {
+    return {
+      title: `Install from ${browserName}`,
+      steps: [
+        `Open BBH Qualification Tracker in ${browserName}.`,
+        "Tap the Share button in the browser toolbar.",
+        "Choose Add to Home Screen, then confirm.",
+      ],
+    };
+  }
+
+  if (canInstall) {
+    return {
+      title: `Install from ${browserName}`,
+      steps: [
+        `Open BBH Qualification Tracker in ${browserName}.`,
+        "Tap the Install App button on this page, or use the browser install prompt in the address bar.",
+        "Confirm the install to add it like an app.",
+      ],
+    };
+  }
+
+  return {
+    title: "Install from a mobile or desktop browser",
+    steps: [
+      "Open BBH Qualification Tracker in a browser that supports app install prompts or home-screen shortcuts.",
+      "Look for an Add to Home Screen, Install App, or Share option in the browser menu.",
+      "Use that option to add BBH Qualification Tracker for one-tap access later.",
+    ],
+  };
+}
+
+function InstallPanel({ installState, onInstall, onOpenHelp, onDismiss }) {
+  const { isStandalone, canInstall, isDismissed, browserName } = installState;
+
+  if (isDismissed) {
+    return null;
+  }
 
   if (isStandalone) {
     return (
@@ -247,27 +358,12 @@ function InstallPanel({ installState, onInstall, isSharePending, onShare }) {
           <h3>BBH Tracker is on this device.</h3>
           <p>Open it from your home screen whenever you want a quick in-session lookup.</p>
         </div>
-        <StatusPill tone="green">Added To Home Screen</StatusPill>
-      </div>
-    );
-  }
-
-  if (isDismissed) {
-    return (
-      <div className="install-panel install-panel--compact">
-        <div>
-          <p className="eyebrow">Add To Home Screen</p>
-          <p>
-            {isIos
-              ? "Open this link in Safari, tap Share, then tap Add to Home Screen."
-              : canInstall
-                ? "Use the Install App button to pin BBH Tracker to your phone or desktop."
-                : "Open this in a browser that supports install prompts, or share the hosted link with a friend."}
-          </p>
+        <div className="install-panel__actions install-panel__actions--stacked">
+          <StatusPill tone="green">Added To Home Screen</StatusPill>
+          <button type="button" className="ghost-button" onClick={onDismiss}>
+            Dismiss
+          </button>
         </div>
-        <button type="button" className="ghost-button" onClick={onShare} disabled={isSharePending}>
-          {isSharePending ? "Opening..." : "Install"}
-        </button>
       </div>
     );
   }
@@ -276,14 +372,7 @@ function InstallPanel({ installState, onInstall, isSharePending, onShare }) {
     <div className="install-panel">
       <div className="install-panel__copy">
         <p className="eyebrow">Add To Home Screen</p>
-        <h3>{isIos ? "Install this on your iPhone in three taps." : "Install this like an app."}</h3>
-        <p>
-          {isIos
-            ? "1. Open this page in Safari. 2. Tap the Share button. 3. Tap Add to Home Screen. After that, BBH Tracker will launch from your phone like an app."
-            : canInstall
-              ? "Tap Install App to pin BBH Tracker like an app, then share the same hosted link with your crew."
-              : "Use the Install button for phone setup help, or open this in a browser that supports app install prompts."}
-        </p>
+        <h3>Install BBH Tracker for one-tap access.</h3>
       </div>
 
       <div className="install-panel__actions">
@@ -292,15 +381,18 @@ function InstallPanel({ installState, onInstall, isSharePending, onShare }) {
             Install App
           </button>
         ) : null}
-        <button type="button" className="ghost-button" onClick={onShare} disabled={isSharePending}>
-          {isSharePending ? "Opening..." : isIos ? "Open Install Steps" : "Install"}
+        <button type="button" className="ghost-button" onClick={onOpenHelp}>
+          Open Install Steps
+        </button>
+        <button type="button" className="ghost-button" onClick={onDismiss}>
+          Dismiss
         </button>
       </div>
     </div>
   );
 }
 
-function RefreshProgress({ refreshStatus }) {
+function RefreshProgress({ refreshStatus, onDismiss }) {
   if (!refreshStatus || refreshStatus.status === "idle") {
     return null;
   }
@@ -326,6 +418,11 @@ function RefreshProgress({ refreshStatus }) {
       <p className="refresh-progress__message">
         {refreshStatus.error ? `${refreshStatus.message} ${refreshStatus.error}` : refreshStatus.message}
       </p>
+      <div className="refresh-progress__actions">
+        <button type="button" className="ghost-button" onClick={onDismiss}>
+          Dismiss
+        </button>
+      </div>
     </div>
   );
 }
@@ -354,6 +451,33 @@ function RefreshConfirmModal({ isOpen, isStarting, onCancel, onConfirm }) {
           </button>
           <button type="button" className="primary-button" onClick={onConfirm} disabled={isStarting}>
             {isStarting ? "Starting..." : "Start Refresh"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InstallHelpModal({ isOpen, installState, onClose }) {
+  if (!isOpen) {
+    return null;
+  }
+
+  const guide = getInstallGuide(installState);
+
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <div className="modal-card" role="dialog" aria-modal="true" aria-labelledby="install-modal-title">
+        <p className="eyebrow">Add To Home Screen</p>
+        <h3 id="install-modal-title">{guide.title}</h3>
+        <ol className="modal-steps">
+          {guide.steps.map((step) => (
+            <li key={step}>{step}</li>
+          ))}
+        </ol>
+        <div className="modal-actions">
+          <button type="button" className="primary-button" onClick={onClose}>
+            Close
           </button>
         </div>
       </div>
@@ -458,10 +582,18 @@ export function App() {
     ...getInstallContext(),
     canInstall: false,
     deferredPrompt: null,
-    isDismissed: false,
+    isDismissed: readStoredValue(INSTALL_PANEL_DISMISSED_KEY) === "1",
   }));
-  const [isSharePending, setIsSharePending] = useState(false);
+  const [isInstallHelpOpen, setIsInstallHelpOpen] = useState(false);
+  const [dismissedRefreshSignature, setDismissedRefreshSignature] = useState(
+    () => readStoredValue(REFRESH_PROGRESS_DISMISSED_KEY) ?? "",
+  );
   const isRefreshLocked = isStartingRefresh || refreshStatus?.status === "running";
+  const refreshSignature = useMemo(
+    () => (refreshStatus?.startedAt ? refreshStatus.startedAt : ""),
+    [refreshStatus?.startedAt],
+  );
+  const isRefreshDismissed = Boolean(refreshSignature) && dismissedRefreshSignature === refreshSignature;
 
   const animals = useMemo(
     () => [...new Set(allOpportunities.map((item) => item.animal))].sort(),
@@ -624,7 +756,6 @@ export function App() {
         ...getInstallContext(),
         canInstall: false,
         deferredPrompt: null,
-        isDismissed: false,
       }));
     }
 
@@ -660,39 +791,33 @@ export function App() {
     }));
   }
 
-  async function shareApp() {
-    setIsSharePending(true);
+  function openInstallHelp() {
+    setIsInstallHelpOpen(true);
+  }
 
-    try {
-      if (installState.isIos) {
-        if (typeof window !== "undefined") {
-          window.alert(
-            "To install BBH Tracker on iPhone: open this page in Safari, tap Share, then tap Add to Home Screen.",
-          );
-        }
-        return;
-      }
+  function dismissInstallPanel() {
+    setInstallState((current) => ({
+      ...current,
+      isDismissed: true,
+    }));
+    writeStoredValue(INSTALL_PANEL_DISMISSED_KEY, "1");
+  }
 
-      const sharePayload = {
-        title: "BBH Qualification Tracker",
-        text: "Track worlds qualification gaps and trek priorities.",
-        url: window.location.href,
-      };
-
-      if (navigator.share) {
-        await navigator.share(sharePayload).catch(() => null);
-      } else if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(window.location.href);
-      }
-    } finally {
-      setIsSharePending(false);
+  function dismissRefreshProgress() {
+    if (!refreshSignature) {
+      return;
     }
+
+    setDismissedRefreshSignature(refreshSignature);
+    writeStoredValue(REFRESH_PROGRESS_DISMISSED_KEY, refreshSignature);
   }
 
   async function startRefresh() {
     flushSync(() => {
       setIsStartingRefresh(true);
       setIsRefreshModalOpen(false);
+      setDismissedRefreshSignature("");
+      writeStoredValue(REFRESH_PROGRESS_DISMISSED_KEY, null);
       setRefreshStatus((current) => ({
         ...(current ?? {}),
         status: "running",
@@ -735,8 +860,12 @@ export function App() {
 
       <header className="topbar">
         <div>
-          <p className="eyebrow">Big Buck Hunter Companion</p>
-          <h1>BBH Qualification Tracker</h1>
+          <p className="eyebrow">Big Buck Hunter Reloaded Companion</p>
+          <h1>
+            Big Buck World Championship
+            <br />
+            Qualification Tracker
+          </h1>
         </div>
       </header>
 
@@ -744,16 +873,17 @@ export function App() {
         <section className="hero-card panel">
           <div className="hero-card__copy">
             <p className="eyebrow">How Worlds Qualification Works</p>
-            <h2>Skills gets you in first. Wildcard is the backup race after that.</h2>
+            <h2>Skills rewards the top-performing hunters. Wildcard rewards the grind after that.</h2>
             <p>
-              Your Skills score is built from the top three runs you have on each trek, with the
-              top 64 Skills players qualifying for Worlds first. After those 64 are locked in, the
-              next 64 players qualify by Wildcard score, which is your broader cumulative total.
+              The Skills score is built from the top three runs a hunter has on each trek, with
+              the top 64 Skills players qualifying for Worlds first. After those 64 are locked in,
+              the next 64 players qualify by Wildcard score, which reflects a hunter&apos;s total
+              cumulative score from all Pro games played.
             </p>
             <p>
-              Use this tracker to compare your third counted score on each trek against the current
-              top hunter&apos;s best score so you can see where the most Skills ground is still on
-              the table.
+              This tracker compares a hunter&apos;s lowest contributing score on each trek against
+              that trek&apos;s top hunter&apos;s best score. That makes it easier to spot where a
+              hunter has the most points to gain by attempting that trek again.
             </p>
           </div>
 
@@ -778,12 +908,14 @@ export function App() {
                   ? "Refresh Running..."
                   : "Refresh Live Data"}
             </button>
-            <RefreshProgress refreshStatus={refreshStatus} />
+            {!isRefreshDismissed ? (
+              <RefreshProgress refreshStatus={refreshStatus} onDismiss={dismissRefreshProgress} />
+            ) : null}
             <InstallPanel
               installState={installState}
               onInstall={installApp}
-              isSharePending={isSharePending}
-              onShare={shareApp}
+              onOpenHelp={openInstallHelp}
+              onDismiss={dismissInstallPanel}
             />
           </div>
         </section>
@@ -1016,6 +1148,11 @@ export function App() {
         isStarting={isStartingRefresh}
         onCancel={() => setIsRefreshModalOpen(false)}
         onConfirm={startRefresh}
+      />
+      <InstallHelpModal
+        isOpen={isInstallHelpOpen}
+        installState={installState}
+        onClose={() => setIsInstallHelpOpen(false)}
       />
     </div>
   );

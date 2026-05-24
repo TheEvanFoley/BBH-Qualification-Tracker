@@ -17,6 +17,7 @@ const ADVENTURES = [
   { id: "11100", animal: "Caribou" },
 ];
 const BENCHMARK_TARGETS = ADVENTURES.length * 3;
+const SHORT_PAGE_RETRY_LIMIT = 3;
 
 function reportProgress(onProgress, update) {
   if (typeof onProgress === "function") {
@@ -155,10 +156,37 @@ async function fetchQualifierScores(page, player) {
   return response.text();
 }
 
+function buildLeaderboardUrl(offset) {
+  return offset === 0
+    ? BASE_URL
+    : `${BASE_URL}?order_by=SkillRank&order_direction=desc&search=&limit=${PAGE_SIZE}&offset=${offset}`;
+}
+
+async function loadLeaderboardPage(page, offset) {
+  await page.goto(buildLeaderboardUrl(offset), { waitUntil: "networkidle" });
+  await page.waitForSelector("table tr");
+
+  const [summaries, sourceLastUpdated] = await Promise.all([
+    parsePlayerSummary(page),
+    page
+      .locator(".leaderboard-last-update strong")
+      .first()
+      .textContent()
+      .catch(() => null),
+  ]);
+
+  return {
+    offset,
+    summaries,
+    sourceLastUpdated,
+  };
+}
+
 async function scrapePlayerIndex(page, { maxPages = null, maxPlayers = null, onProgress = null } = {}) {
   const players = [];
   const seenPlayers = new Set();
   let sourceLastUpdated = null;
+  let prefetchedPage = null;
 
   for (let pageIndex = 0; ; pageIndex += 1) {
     if (maxPages && pageIndex >= maxPages) {
@@ -166,10 +194,6 @@ async function scrapePlayerIndex(page, { maxPages = null, maxPlayers = null, onP
     }
 
     const offset = pageIndex * PAGE_SIZE;
-    const url =
-      offset === 0
-        ? BASE_URL
-        : `${BASE_URL}?order_by=SkillRank&order_direction=desc&search=&limit=${PAGE_SIZE}&offset=${offset}`;
 
     reportProgress(onProgress, {
       phase: "players",
@@ -181,20 +205,65 @@ async function scrapePlayerIndex(page, { maxPages = null, maxPlayers = null, onP
           : `Scanning leaderboard page ${pageIndex + 1} for more players...`,
     });
 
-    await page.goto(url, { waitUntil: "networkidle" });
-    await page.waitForSelector("table tr");
-
-    if (!sourceLastUpdated) {
-      sourceLastUpdated = await page
-        .locator(".leaderboard-last-update strong")
-        .first()
-        .textContent()
-        .catch(() => null);
+    let pageData;
+    if (prefetchedPage?.offset === offset) {
+      pageData = prefetchedPage;
+      prefetchedPage = null;
+    } else {
+      pageData = await loadLeaderboardPage(page, offset);
     }
 
-    const summaries = await parsePlayerSummary(page);
+    if (!sourceLastUpdated) {
+      sourceLastUpdated = pageData.sourceLastUpdated;
+    }
+
+    let summaries = pageData.summaries;
     if (summaries.length === 0) {
       break;
+    }
+
+    if (pageIndex > 0 && summaries.length < PAGE_SIZE) {
+      const nextOffset = offset + PAGE_SIZE;
+
+      reportProgress(onProgress, {
+        phase: "players",
+        pageIndex,
+        playersFound: players.length,
+        message: `Verifying leaderboard page ${pageIndex + 1} before stopping...`,
+      });
+
+      const nextPageData = await loadLeaderboardPage(page, nextOffset);
+
+      if (nextPageData.summaries.length > 0) {
+        let recovered = false;
+
+        for (let retryIndex = 1; retryIndex <= SHORT_PAGE_RETRY_LIMIT; retryIndex += 1) {
+          reportProgress(onProgress, {
+            phase: "players",
+            pageIndex,
+            playersFound: players.length,
+            message: `Retrying leaderboard page ${pageIndex + 1} (${retryIndex}/${SHORT_PAGE_RETRY_LIMIT})...`,
+          });
+
+          await page.waitForTimeout(500 * retryIndex);
+          const retriedPageData = await loadLeaderboardPage(page, offset);
+          summaries = retriedPageData.summaries;
+
+          if (summaries.length === PAGE_SIZE) {
+            pageData = retriedPageData;
+            recovered = true;
+            break;
+          }
+        }
+
+        if (!recovered) {
+          throw new Error(
+            `Leaderboard page ${pageIndex + 1} returned only ${summaries.length} rows while later pages still had data. Refresh stopped to avoid saving an incomplete snapshot.`,
+          );
+        }
+      } else {
+        prefetchedPage = nextPageData;
+      }
     }
 
     for (const summary of summaries) {

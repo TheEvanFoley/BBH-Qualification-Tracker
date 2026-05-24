@@ -140,7 +140,8 @@ button {
 
 .topbar h1 {
   margin-top: 0.35rem;
-  font-size: clamp(2.15rem, 4vw, 3.2rem);
+  max-width: 30ch;
+  font-size: clamp(1.65rem, 3.25vw, 2.55rem);
   color: var(--bbh-orange-500);
   text-shadow: 0 3px 20px rgba(0, 0, 0, 0.45);
 }
@@ -244,6 +245,11 @@ button {
   grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
 }
 
+.install-panel__actions--stacked {
+  grid-template-columns: 1fr;
+  justify-items: end;
+}
+
 .status-tile {
   display: grid;
   gap: 0.45rem;
@@ -279,6 +285,11 @@ button {
   margin: 0;
   color: var(--ink-soft);
   line-height: 1.5;
+}
+
+.refresh-progress__actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .progress-bar {
@@ -329,6 +340,17 @@ button {
 .modal-card p {
   color: var(--ink-soft);
   line-height: 1.6;
+}
+
+.modal-steps {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: var(--ink-soft);
+  line-height: 1.7;
+}
+
+.modal-steps li + li {
+  margin-top: 0.45rem;
 }
 
 .modal-actions {
