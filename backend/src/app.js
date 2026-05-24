@@ -64,8 +64,11 @@ export function createApp(db) {
 
     if (update.phase === "players") {
       const currentPage = (update.pageIndex ?? 0) + 1;
-      const totalPagesLabel = estimatedPlayerPages ? `${estimatedPlayerPages}` : "?";
-      return `Checking leaderboard page ${currentPage} of ${totalPagesLabel}...`;
+      if (estimatedPlayerPages && estimatedPlayerPages >= currentPage) {
+        return `Checking leaderboard page ${currentPage} of ${estimatedPlayerPages}...`;
+      }
+
+      return `Checking leaderboard page ${currentPage}...`;
     }
 
     if (update.phase === "players-complete") {
@@ -90,7 +93,11 @@ export function createApp(db) {
 
     if (update.phase === "players") {
       const currentPage = (update.pageIndex ?? 0) + 1;
-      const totalPages = Math.max(1, estimatedPlayerPages || currentPage);
+      const rollingEstimate =
+        estimatedPlayerPages && estimatedPlayerPages >= currentPage
+          ? estimatedPlayerPages
+          : currentPage + 10;
+      const totalPages = Math.max(1, rollingEstimate);
       const ratio = Math.min(1, currentPage / totalPages);
       return 12 + Math.round(ratio * 43);
     }
@@ -114,10 +121,10 @@ export function createApp(db) {
 
   async function runRefreshJob(options = {}) {
     const latestSnapshot = await getLatestSnapshot(db);
-    const estimatedPlayerPages = Math.max(
-      1,
-      Math.ceil((latestSnapshot?.playerCount ?? REFRESH_PAGE_SIZE) / REFRESH_PAGE_SIZE),
-    );
+    const estimatedPlayerPages =
+      latestSnapshot?.playerCount && latestSnapshot.playerCount >= REFRESH_PAGE_SIZE
+        ? Math.ceil(latestSnapshot.playerCount / REFRESH_PAGE_SIZE)
+        : 0;
 
     updateRefreshState({
       status: "running",
@@ -140,15 +147,20 @@ export function createApp(db) {
         maxPages: options.maxPages ?? null,
         maxPlayers: options.maxPlayers ?? null,
         onProgress: (update) => {
+          const currentPage = update.phase === "players" ? (update.pageIndex ?? 0) + 1 : refreshState.currentPage;
+          const nextEstimatedPlayerPages =
+            update.phase === "players" && currentPage > refreshState.estimatedPlayerPages
+              ? Math.max(refreshState.estimatedPlayerPages, currentPage + 10)
+              : refreshState.estimatedPlayerPages;
+
           updateRefreshState({
             phase: update.phase ?? refreshState.phase,
-            progress: mapRefreshProgress(update, estimatedPlayerPages),
-            message: buildRefreshMessage(update, estimatedPlayerPages),
+            progress: mapRefreshProgress(update, nextEstimatedPlayerPages),
+            message: buildRefreshMessage(update, nextEstimatedPlayerPages),
             playersFound: update.playersFound ?? refreshState.playersFound,
             benchmarksFound: update.benchmarksFound ?? refreshState.benchmarksFound,
-            currentPage:
-              update.phase === "players" ? (update.pageIndex ?? 0) + 1 : refreshState.currentPage,
-            estimatedPlayerPages,
+            currentPage,
+            estimatedPlayerPages: nextEstimatedPlayerPages,
             processedTargets: update.processedTargets ?? refreshState.processedTargets,
             totalTargets: update.totalTargets ?? refreshState.totalTargets,
           });
