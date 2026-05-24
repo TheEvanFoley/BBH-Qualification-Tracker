@@ -1,9 +1,8 @@
+import fs from "node:fs";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
-import { chromium } from "playwright";
 
+const sourcePath = path.resolve("frontend", "public", "icon-source.png");
 const publicDir = path.resolve("frontend", "public");
-const sourceImage = path.join(publicDir, "icon-source.png");
 const jobs = [
   { output: "favicon-16-v2.png", size: 16 },
   { output: "favicon-32-v2.png", size: 32 },
@@ -13,36 +12,25 @@ const jobs = [
   { output: "apple-touch-icon-v2.png", size: 180 },
 ];
 
-const browser = await chromium.launch({ headless: true });
-const page = await browser.newPage({
-  viewport: { width: 512, height: 512 },
-  deviceScaleFactor: 1,
-});
+async function run() {
+  const { default: sharp } = await import("sharp");
 
-for (const job of jobs) {
-  const sourceUrl = pathToFileURL(sourceImage).href;
+  if (!fs.existsSync(sourcePath)) {
+    throw new Error(`Missing icon source image at ${sourcePath}`);
+  }
 
-  await page.setViewportSize({ width: job.size, height: job.size });
-  await page.setContent(`
-    <style>
-      html, body {
-        margin: 0;
-        background: transparent;
-      }
-
-      img {
-        display: block;
-        width: ${job.size}px;
-        height: ${job.size}px;
-        object-fit: cover;
-      }
-    </style>
-    <img src="${sourceUrl}" alt="" />
-  `);
-
-  await page.locator("img").screenshot({
-    path: path.join(publicDir, job.output),
-  });
+  for (const job of jobs) {
+    await sharp(sourcePath)
+      .resize(job.size, job.size, {
+        fit: "cover",
+        position: "centre",
+      })
+      .png()
+      .toFile(path.join(publicDir, job.output));
+  }
 }
 
-await browser.close();
+run().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

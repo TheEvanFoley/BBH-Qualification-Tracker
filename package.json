@@ -21,6 +21,7 @@
     "playwright": "^1.60.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "sharp": "^0.34.5",
     "sqlite3": "^6.0.1"
   },
   "devDependencies": {
