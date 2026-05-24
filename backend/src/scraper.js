@@ -16,6 +16,13 @@ const ADVENTURES = [
   { id: "11000", animal: "Zombie Deer" },
   { id: "11100", animal: "Caribou" },
 ];
+const BENCHMARK_TARGETS = ADVENTURES.length * 3;
+
+function reportProgress(onProgress, update) {
+  if (typeof onProgress === "function") {
+    onProgress(update);
+  }
+}
 
 async function parsePlayerSummary(page) {
   return page.$$eval("table tr", (rows) =>
@@ -148,7 +155,7 @@ async function fetchQualifierScores(page, player) {
   return response.text();
 }
 
-async function scrapePlayerIndex(page, { maxPages = null, maxPlayers = null } = {}) {
+async function scrapePlayerIndex(page, { maxPages = null, maxPlayers = null, onProgress = null } = {}) {
   const players = [];
   const seenPlayers = new Set();
   let sourceLastUpdated = null;
@@ -163,6 +170,16 @@ async function scrapePlayerIndex(page, { maxPages = null, maxPlayers = null } = 
       offset === 0
         ? BASE_URL
         : `${BASE_URL}?order_by=SkillRank&order_direction=desc&search=&limit=${PAGE_SIZE}&offset=${offset}`;
+
+    reportProgress(onProgress, {
+      phase: "players",
+      pageIndex,
+      playersFound: players.length,
+      message:
+        pageIndex === 0
+          ? "Loading the main qualifiers leaderboard..."
+          : `Scanning leaderboard page ${pageIndex + 1} for more players...`,
+    });
 
     await page.goto(url, { waitUntil: "networkidle" });
     await page.waitForSelector("table tr");
@@ -194,6 +211,13 @@ async function scrapePlayerIndex(page, { maxPages = null, maxPlayers = null } = 
       }
     }
 
+    reportProgress(onProgress, {
+      phase: "players",
+      pageIndex,
+      playersFound: players.length,
+      message: `Loaded ${players.length} player summaries so far.`,
+    });
+
     if (maxPlayers && players.length >= maxPlayers) {
       break;
     }
@@ -206,12 +230,23 @@ async function scrapePlayerIndex(page, { maxPages = null, maxPlayers = null } = 
   return { players, sourceLastUpdated };
 }
 
-async function scrapeBenchmarks(page) {
+async function scrapeBenchmarks(page, { onProgress = null } = {}) {
   const benchmarks = [];
   const cachedScoreRuns = new Map();
+  let processedTargets = 0;
 
   for (const adventure of ADVENTURES) {
     for (const trekNumber of [1, 2, 3]) {
+      processedTargets += 1;
+      reportProgress(onProgress, {
+        phase: "benchmarks",
+        processedTargets,
+        totalTargets: BENCHMARK_TARGETS,
+        animal: adventure.animal,
+        trek: `Trek ${trekNumber}`,
+        message: `Benchmarking ${adventure.animal} Trek ${trekNumber}...`,
+      });
+
       const url = `${BASE_URL}?order_by=Trek${trekNumber}_Rank&order_direction=desc&search=&limit=${PAGE_SIZE}&offset=0&adventure_id=${adventure.id}`;
       await page.goto(url, { waitUntil: "networkidle" });
       await page.waitForSelector("table tr");
@@ -273,16 +308,32 @@ export async function scrapeBenchmarksOnly() {
   }
 }
 
-export async function scrapeQualifiers({ maxPages = null, maxPlayers = null } = {}) {
+export async function scrapeQualifiers({ maxPages = null, maxPlayers = null, onProgress = null } = {}) {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
 
   try {
+    reportProgress(onProgress, {
+      phase: "starting",
+      message: "Launching scraper...",
+    });
+
     const { players, sourceLastUpdated } = await scrapePlayerIndex(page, {
       maxPages,
       maxPlayers,
+      onProgress,
     });
-    const benchmarks = await scrapeBenchmarks(page);
+    reportProgress(onProgress, {
+      phase: "players-complete",
+      playersFound: players.length,
+      message: `Player index loaded with ${players.length} players.`,
+    });
+    const benchmarks = await scrapeBenchmarks(page, { onProgress });
+    reportProgress(onProgress, {
+      phase: "benchmarks-complete",
+      benchmarksFound: benchmarks.length,
+      message: `Collected ${benchmarks.length} trek benchmarks.`,
+    });
 
     return {
       createdAt: new Date().toISOString(),

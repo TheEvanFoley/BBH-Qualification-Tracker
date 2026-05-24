@@ -12,10 +12,10 @@ async function registerServiceWorker() {
   }
 
   try {
-    await navigator.serviceWorker.register("/sw.js");
+    await navigator.serviceWorker.register("/sw.js", { scope: "/" });
     return {
       status: "ready",
-      message: "Companion app shell is ready. Add this page to your home screen.",
+      message: "Home-screen install is ready on supported devices.",
     };
   } catch (error) {
     return {
@@ -25,10 +25,10 @@ async function registerServiceWorker() {
   }
 }
 
-const serviceWorkerState = await registerServiceWorker();
+await registerServiceWorker();
 
 ReactDOM.createRoot(document.querySelector("#root")).render(
   <React.StrictMode>
-    <App serviceWorkerState={serviceWorkerState} />
+    <App />
   </React.StrictMode>,
 );

@@ -1,13 +1,14 @@
-const CACHE_NAME = "bbh-qualification-tracker-v1";
+const CACHE_NAME = "bbh-qualification-tracker-v2";
 const APP_SHELL = [
   "/",
-  "/index.html",
-  "/styles.css",
-  "/app.js",
+  "/offline.html",
   "/manifest.webmanifest",
   "/icon.svg",
   "/icon-maskable.svg",
-  "/offline.html",
+  "/icon-192.png",
+  "/icon-512.png",
+  "/icon-maskable-512.png",
+  "/apple-touch-icon.png",
 ];
 
 self.addEventListener("install", (event) => {
@@ -19,13 +20,15 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) =>
-      Promise.all(
-        cacheNames
-          .filter((cacheName) => cacheName !== CACHE_NAME)
-          .map((cacheName) => caches.delete(cacheName)),
+    caches
+      .keys()
+      .then((cacheNames) =>
+        Promise.all(
+          cacheNames
+            .filter((cacheName) => cacheName !== CACHE_NAME)
+            .map((cacheName) => caches.delete(cacheName)),
+        ),
       ),
-    ),
   );
   self.clients.claim();
 });
@@ -43,14 +46,11 @@ self.addEventListener("fetch", (event) => {
       fetch(request).catch(() => {
         return new Response(
           JSON.stringify({
-            error: "Offline",
-            details: "Connect to the internet to refresh live leaderboard data.",
+            error: "The app is offline and cannot reach live tracker data right now.",
           }),
           {
-            headers: {
-              "Content-Type": "application/json",
-            },
             status: 503,
+            headers: { "Content-Type": "application/json" },
           },
         );
       }),
@@ -60,32 +60,40 @@ self.addEventListener("fetch", (event) => {
 
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request).catch(async () => {
-        const cache = await caches.open(CACHE_NAME);
-        return cache.match("/offline.html");
-      }),
+      fetch(request)
+        .then((networkResponse) => {
+          const clonedResponse = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put("/", clonedResponse);
+          });
+          return networkResponse;
+        })
+        .catch(async () => {
+          const cache = await caches.open(CACHE_NAME);
+          return (await cache.match("/")) || cache.match("/offline.html");
+        }),
     );
     return;
   }
 
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
+      const networkFetch = fetch(request)
+        .then((networkResponse) => {
+          if (!networkResponse || networkResponse.status !== 200) {
+            return networkResponse;
+          }
 
-      return fetch(request).then((networkResponse) => {
-        if (!networkResponse || networkResponse.status !== 200) {
+          const clonedResponse = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, clonedResponse);
+          });
+
           return networkResponse;
-        }
+        })
+        .catch(() => cachedResponse);
 
-        const clonedResponse = networkResponse.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(request, clonedResponse);
-        });
-
-        return networkResponse;
-      });
+      return cachedResponse || networkFetch;
     }),
   );
 });

@@ -4,6 +4,7 @@
   "type": "module",
   "main": "backend/src/server.js",
   "scripts": {
+    "build:icons": "node backend/scripts/generate-pwa-icons.mjs",
     "build": "vite build --config frontend/vite.config.js",
     "dev": "node --watch backend/src/server.js",
     "dev:backend": "node --watch backend/src/server.js",

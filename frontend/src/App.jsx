@@ -1,6 +1,6 @@
-import React, { startTransition, useEffect, useMemo, useState } from "react";
+import React, { startTransition, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
-const PAGE_SIZE = 12;
 const weaponOptions = [
   { value: "both", label: "Both" },
   { value: "gun", label: "Gun" },
@@ -28,6 +28,25 @@ async function fetchJson(url, options) {
   }
 
   return data;
+}
+
+function mergeRefreshStatus(current, next) {
+  if (!current) {
+    return next;
+  }
+
+  if (current.status === "running" && next.status === "idle") {
+    return current;
+  }
+
+  const currentStartedAt = current.startedAt ? Date.parse(current.startedAt) : 0;
+  const nextStartedAt = next.startedAt ? Date.parse(next.startedAt) : 0;
+
+  if (current.status === "running" && nextStartedAt < currentStartedAt) {
+    return current;
+  }
+
+  return next;
 }
 
 function StatusPill({ tone = "neutral", children }) {
@@ -122,8 +141,9 @@ function OpportunityCard({ opportunity, isActive, onSelect }) {
 function Drilldown({ opportunity }) {
   if (!opportunity) {
     return (
-      <div className="empty-panel">
-        Tap a trek row to compare your counted scores against the current top hunter.
+      <div className="empty-panel empty-panel--detail">
+        Tap a trek row from the Skills Score Breakdown table to compare counted scores against the
+        current top hunter.
       </div>
     );
   }
@@ -195,33 +215,273 @@ function Drilldown({ opportunity }) {
   );
 }
 
-export function App({ serviceWorkerState }) {
+function getInstallContext() {
+  if (typeof window === "undefined") {
+    return {
+      isStandalone: false,
+      isIos: false,
+    };
+  }
+
+  const standaloneMedia =
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(display-mode: standalone)").matches;
+  const navigatorStandalone = window.navigator.standalone === true;
+  const userAgent = window.navigator.userAgent ?? "";
+  const isIos = /iPhone|iPad|iPod/i.test(userAgent);
+
+  return {
+    isStandalone: standaloneMedia || navigatorStandalone,
+    isIos,
+  };
+}
+
+function InstallPanel({ installState, onInstall, isSharePending, onShare }) {
+  const { isStandalone, isIos, canInstall, isDismissed } = installState;
+
+  if (isStandalone) {
+    return (
+      <div className="install-panel install-panel--ready">
+        <div>
+          <p className="eyebrow">Installed</p>
+          <h3>BBH Tracker is on this device.</h3>
+          <p>Open it from your home screen whenever you want a quick in-session lookup.</p>
+        </div>
+        <StatusPill tone="green">Added To Home Screen</StatusPill>
+      </div>
+    );
+  }
+
+  if (isDismissed) {
+    return (
+      <div className="install-panel install-panel--compact">
+        <div>
+          <p className="eyebrow">Add To Home Screen</p>
+          <p>
+            {isIos
+              ? "Open this link in Safari, tap Share, then tap Add to Home Screen."
+              : canInstall
+                ? "Use the Install App button to pin BBH Tracker to your phone or desktop."
+                : "Open this in a browser that supports install prompts, or share the hosted link with a friend."}
+          </p>
+        </div>
+        <button type="button" className="ghost-button" onClick={onShare} disabled={isSharePending}>
+          {isSharePending ? "Opening..." : "Install"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="install-panel">
+      <div className="install-panel__copy">
+        <p className="eyebrow">Add To Home Screen</p>
+        <h3>{isIos ? "Install this on your iPhone in three taps." : "Install this like an app."}</h3>
+        <p>
+          {isIos
+            ? "1. Open this page in Safari. 2. Tap the Share button. 3. Tap Add to Home Screen. After that, BBH Tracker will launch from your phone like an app."
+            : canInstall
+              ? "Tap Install App to pin BBH Tracker like an app, then share the same hosted link with your crew."
+              : "Use the Install button for phone setup help, or open this in a browser that supports app install prompts."}
+        </p>
+      </div>
+
+      <div className="install-panel__actions">
+        {canInstall ? (
+          <button type="button" className="secondary-button" onClick={onInstall}>
+            Install App
+          </button>
+        ) : null}
+        <button type="button" className="ghost-button" onClick={onShare} disabled={isSharePending}>
+          {isSharePending ? "Opening..." : isIos ? "Open Install Steps" : "Install"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function RefreshProgress({ refreshStatus }) {
+  if (!refreshStatus || refreshStatus.status === "idle") {
+    return null;
+  }
+
+  return (
+    <div className="refresh-progress">
+      <div className="refresh-progress__top">
+        <div>
+          <p className="eyebrow">Refresh Progress</p>
+          <strong>
+            {refreshStatus.status === "running"
+              ? "Live refresh is running"
+              : refreshStatus.status === "completed"
+                ? "Latest refresh completed"
+                : "Latest refresh failed"}
+          </strong>
+        </div>
+        <span>{refreshStatus.progress ?? 0}%</span>
+      </div>
+      <div className="progress-bar" aria-hidden="true">
+        <span style={{ width: `${refreshStatus.progress ?? 0}%` }} />
+      </div>
+      <p className="refresh-progress__message">
+        {refreshStatus.error ? `${refreshStatus.message} ${refreshStatus.error}` : refreshStatus.message}
+      </p>
+    </div>
+  );
+}
+
+function RefreshConfirmModal({ isOpen, isStarting, onCancel, onConfirm }) {
+  if (!isOpen) {
+    return null;
+  }
+
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <div className="modal-card" role="dialog" aria-modal="true" aria-labelledby="refresh-modal-title">
+        <p className="eyebrow">Refresh Live Data</p>
+        <h3 id="refresh-modal-title">This refresh can take a while.</h3>
+        <p>
+          A Live Data refresh checks the Big Buck Hunter leaderboard and collects its data, which
+          can take a few minutes to finish.
+        </p>
+        <p>
+          Please only run a refresh when it is actually needed. That helps keep the shared app fast
+          and affordable for everyone using it.
+        </p>
+        <div className="modal-actions">
+          <button type="button" className="ghost-button" onClick={onCancel} disabled={isStarting}>
+            Cancel
+          </button>
+          <button type="button" className="primary-button" onClick={onConfirm} disabled={isStarting}>
+            {isStarting ? "Starting..." : "Start Refresh"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DropdownControl({
+  label,
+  value,
+  options,
+  onChange,
+  width = "compact",
+  menuDirection = "down",
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    function handlePointerDown(event) {
+      if (!containerRef.current?.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, []);
+
+  return (
+    <div
+      ref={containerRef}
+      className={`dropdown-control dropdown-control--${width} ${isOpen ? "is-open" : ""}`}
+    >
+      <span className="dropdown-control__label">{label}</span>
+      <button
+        type="button"
+        className="dropdown-control__button"
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((current) => !current)}
+      >
+        <span className="dropdown-control__value">
+          {options.find((option) => option.value === value)?.label ?? value}
+        </span>
+        <span className="dropdown-control__arrow" aria-hidden="true" />
+      </button>
+      {isOpen ? (
+        <div
+          className={`dropdown-control__menu dropdown-control__menu--${menuDirection}`}
+          role="listbox"
+          aria-label={label}
+        >
+          {options.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="option"
+              aria-selected={value === option.value}
+              className={`dropdown-control__option ${value === option.value ? "is-selected" : ""}`}
+              onClick={() => {
+                onChange(option.value);
+                setIsOpen(false);
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function App() {
   const [snapshot, setSnapshot] = useState(null);
   const [players, setPlayers] = useState([]);
+  const [playersPagination, setPlayersPagination] = useState({
+    page: 1,
+    pageSize: 10,
+    total: 0,
+    totalPages: 1,
+  });
   const [selectedPlayer, setSelectedPlayer] = useState(null);
-  const [opportunities, setOpportunities] = useState([]);
+  const [allOpportunities, setAllOpportunities] = useState([]);
   const [selectedOpportunityKey, setSelectedOpportunityKey] = useState(null);
   const [playerSearch, setPlayerSearch] = useState("");
   const [weapon, setWeapon] = useState("both");
   const [animal, setAnimal] = useState("all");
+  const [playerPage, setPlayerPage] = useState(1);
+  const [playerPageSize, setPlayerPageSize] = useState(10);
   const [opportunityPage, setOpportunityPage] = useState(1);
+  const [opportunityPageSize, setOpportunityPageSize] = useState(10);
   const [playersMessage, setPlayersMessage] = useState("");
   const [opportunitiesMessage, setOpportunitiesMessage] = useState(
-    "Pick a player to load the full skill score breakdown.",
+    "Pick a player from the Find a Hunter table to load the full skill score breakdown.",
   );
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshStatus, setRefreshStatus] = useState(null);
+  const [isStartingRefresh, setIsStartingRefresh] = useState(false);
+  const [isRefreshModalOpen, setIsRefreshModalOpen] = useState(false);
+  const [installState, setInstallState] = useState(() => ({
+    ...getInstallContext(),
+    canInstall: false,
+    deferredPrompt: null,
+    isDismissed: false,
+  }));
+  const [isSharePending, setIsSharePending] = useState(false);
+  const isRefreshLocked = isStartingRefresh || refreshStatus?.status === "running";
 
   const animals = useMemo(
-    () => [...new Set(opportunities.map((item) => item.animal))].sort(),
-    [opportunities],
+    () => [...new Set(allOpportunities.map((item) => item.animal))].sort(),
+    [allOpportunities],
   );
 
-  const totalPages = Math.max(1, Math.ceil(opportunities.length / PAGE_SIZE));
+  const opportunities = useMemo(() => {
+    if (animal === "all") {
+      return allOpportunities;
+    }
+
+    return allOpportunities.filter((item) => item.animal.toLowerCase() === animal);
+  }, [allOpportunities, animal]);
+
+  const totalPages = Math.max(1, Math.ceil(opportunities.length / opportunityPageSize));
   const currentPage = Math.min(opportunityPage, totalPages);
   const visibleOpportunities = useMemo(() => {
-    const startIndex = (currentPage - 1) * PAGE_SIZE;
-    return opportunities.slice(startIndex, startIndex + PAGE_SIZE);
-  }, [currentPage, opportunities]);
+    const startIndex = (currentPage - 1) * opportunityPageSize;
+    return opportunities.slice(startIndex, startIndex + opportunityPageSize);
+  }, [currentPage, opportunities, opportunityPageSize]);
 
   const selectedOpportunity =
     opportunities.find(
@@ -236,17 +496,31 @@ export function App({ serviceWorkerState }) {
     }
   }, [selectedOpportunity]);
 
-  async function loadPlayers({ live = false, overrideSearch = playerSearch } = {}) {
+  async function loadPlayers({
+    live = false,
+    overrideSearch = playerSearch,
+    overridePage = playerPage,
+    overridePageSize = playerPageSize,
+  } = {}) {
     try {
       const search = encodeURIComponent(overrideSearch.trim());
-      const data = await fetchJson(`/api/players?search=${search}&live=${live ? "1" : "0"}`);
+      const data = await fetchJson(
+        `/api/players?search=${search}&live=${live ? "1" : "0"}&page=${overridePage}&pageSize=${overridePageSize}`,
+      );
       startTransition(() => {
         setSnapshot(data.snapshot);
         setPlayers(data.players);
+        setPlayersPagination(data.pagination);
         setPlayersMessage(data.players.length === 0 ? "No players found." : "");
       });
     } catch (error) {
       setPlayers([]);
+      setPlayersPagination({
+        page: 1,
+        pageSize: playerPageSize,
+        total: 0,
+        totalPages: 1,
+      });
       setPlayersMessage(error.message);
     }
   }
@@ -254,7 +528,6 @@ export function App({ serviceWorkerState }) {
   async function loadOpportunities(
     nextPlayer = selectedPlayer,
     nextWeapon = weapon,
-    nextAnimal = animal,
   ) {
     if (!nextPlayer) {
       return;
@@ -264,15 +537,14 @@ export function App({ serviceWorkerState }) {
 
     try {
       const queryWeapon = encodeURIComponent(nextWeapon);
-      const queryAnimal = encodeURIComponent(nextAnimal);
       const data = await fetchJson(
-        `/api/player/${nextPlayer.id}/opportunities?weapon=${queryWeapon}&animal=${queryAnimal}`,
+        `/api/player/${nextPlayer.id}/opportunities?weapon=${queryWeapon}&animal=all`,
       );
 
       startTransition(() => {
         setSnapshot(data.snapshot);
         setSelectedPlayer(data.player);
-        setOpportunities(data.opportunities);
+        setAllOpportunities(data.opportunities);
         setOpportunityPage(1);
         setSelectedOpportunityKey(null);
         setOpportunitiesMessage(
@@ -282,46 +554,178 @@ export function App({ serviceWorkerState }) {
         );
       });
     } catch (error) {
-      setOpportunities([]);
+      setAllOpportunities([]);
       setOpportunitiesMessage(error.message);
     }
   }
 
-  async function refreshData() {
-    setIsRefreshing(true);
-
+  async function loadRefreshStatus() {
     try {
-      await fetchJson("/api/refresh", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      await fetchJson("/api/refresh-benchmarks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-
-      await loadPlayers();
-      if (selectedPlayer) {
-        await loadOpportunities(selectedPlayer);
-      }
+      const data = await fetchJson("/api/refresh-status");
+      setRefreshStatus((current) => mergeRefreshStatus(current, data));
+      return data;
     } catch (error) {
       setPlayersMessage(error.message);
-    } finally {
-      setIsRefreshing(false);
+      return null;
     }
   }
 
   useEffect(() => {
     loadPlayers();
-  }, []);
+    loadRefreshStatus();
+  }, [playerPage, playerPageSize]);
 
   useEffect(() => {
     if (selectedPlayer) {
-      loadOpportunities(selectedPlayer, weapon, animal);
+      loadOpportunities(selectedPlayer, weapon);
     }
-  }, [weapon, animal]);
+  }, [weapon]);
+
+  useEffect(() => {
+    if (refreshStatus?.status !== "running") {
+      return undefined;
+    }
+
+    const intervalId = window.setInterval(async () => {
+      const latestStatus = await loadRefreshStatus();
+
+      if (latestStatus?.status === "completed") {
+        await loadPlayers();
+        if (selectedPlayer) {
+          await loadOpportunities(selectedPlayer, weapon);
+        }
+      }
+    }, 2500);
+
+    return () => window.clearInterval(intervalId);
+  }, [refreshStatus?.status, selectedPlayer, weapon]);
+
+  useEffect(() => {
+    function syncDisplayMode() {
+      setInstallState((current) => ({
+        ...current,
+        ...getInstallContext(),
+      }));
+    }
+
+    function handleBeforeInstallPrompt(event) {
+      event.preventDefault();
+      setInstallState((current) => ({
+        ...current,
+        ...getInstallContext(),
+        canInstall: true,
+        deferredPrompt: event,
+      }));
+    }
+
+    function handleInstalled() {
+      setInstallState((current) => ({
+        ...current,
+        ...getInstallContext(),
+        canInstall: false,
+        deferredPrompt: null,
+        isDismissed: false,
+      }));
+    }
+
+    syncDisplayMode();
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleInstalled);
+    window.addEventListener("focus", syncDisplayMode);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", handleInstalled);
+      window.removeEventListener("focus", syncDisplayMode);
+    };
+  }, []);
+
+  async function installApp() {
+    if (!installState.deferredPrompt) {
+      return;
+    }
+
+    try {
+      await installState.deferredPrompt.prompt();
+      await installState.deferredPrompt.userChoice.catch(() => null);
+    } catch {
+      return;
+    }
+
+    setInstallState((current) => ({
+      ...current,
+      ...getInstallContext(),
+      canInstall: false,
+      deferredPrompt: null,
+    }));
+  }
+
+  async function shareApp() {
+    setIsSharePending(true);
+
+    try {
+      if (installState.isIos) {
+        if (typeof window !== "undefined") {
+          window.alert(
+            "To install BBH Tracker on iPhone: open this page in Safari, tap Share, then tap Add to Home Screen.",
+          );
+        }
+        return;
+      }
+
+      const sharePayload = {
+        title: "BBH Qualification Tracker",
+        text: "Track worlds qualification gaps and trek priorities.",
+        url: window.location.href,
+      };
+
+      if (navigator.share) {
+        await navigator.share(sharePayload).catch(() => null);
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(window.location.href);
+      }
+    } finally {
+      setIsSharePending(false);
+    }
+  }
+
+  async function startRefresh() {
+    flushSync(() => {
+      setIsStartingRefresh(true);
+      setIsRefreshModalOpen(false);
+      setRefreshStatus((current) => ({
+        ...(current ?? {}),
+        status: "running",
+        phase: "starting",
+        progress: Math.max(2, current?.progress ?? 0),
+        message: "Preparing a live data refresh...",
+        error: null,
+        startedAt: new Date().toISOString(),
+        completedAt: null,
+      }));
+    });
+
+    try {
+      const data = await fetchJson("/api/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      setRefreshStatus((current) => mergeRefreshStatus(current, data.refresh));
+    } catch (error) {
+      setPlayersMessage(error.message);
+      setRefreshStatus((current) => ({
+        ...(current ?? {}),
+        status: "failed",
+        phase: "failed",
+        message: "Refresh failed.",
+        error: error.message,
+        completedAt: new Date().toISOString(),
+      }));
+    } finally {
+      setIsStartingRefresh(false);
+    }
+  }
 
   return (
     <div className="app-shell">
@@ -334,9 +738,6 @@ export function App({ serviceWorkerState }) {
           <p className="eyebrow">Big Buck Hunter Companion</p>
           <h1>BBH Qualification Tracker</h1>
         </div>
-        <StatusPill tone={serviceWorkerState.status === "ready" ? "green" : "neutral"}>
-          {serviceWorkerState.message}
-        </StatusPill>
       </header>
 
       <main className="dashboard">
@@ -368,11 +769,22 @@ export function App({ serviceWorkerState }) {
             <button
               type="button"
               className="primary-button"
-              onClick={refreshData}
-              disabled={isRefreshing}
+              onClick={() => setIsRefreshModalOpen(true)}
+              disabled={isRefreshLocked}
             >
-              {isRefreshing ? "Refreshing..." : "Refresh Live Data"}
+              {isStartingRefresh
+                ? "Starting Refresh..."
+                : refreshStatus?.status === "running"
+                  ? "Refresh Running..."
+                  : "Refresh Live Data"}
             </button>
+            <RefreshProgress refreshStatus={refreshStatus} />
+            <InstallPanel
+              installState={installState}
+              onInstall={installApp}
+              isSharePending={isSharePending}
+              onShare={shareApp}
+            />
           </div>
         </section>
 
@@ -392,7 +804,8 @@ export function App({ serviceWorkerState }) {
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
                     event.preventDefault();
-                    loadPlayers({ live: true, overrideSearch: playerSearch });
+                    setPlayerPage(1);
+                    loadPlayers({ live: true, overrideSearch: playerSearch, overridePage: 1 });
                   }
                 }}
                 className="search-input"
@@ -401,8 +814,11 @@ export function App({ serviceWorkerState }) {
               />
               <button
                 type="button"
-                className="secondary-button"
-                onClick={() => loadPlayers({ live: true, overrideSearch: playerSearch })}
+                className="primary-button"
+                onClick={() => {
+                  setPlayerPage(1);
+                  loadPlayers({ live: true, overrideSearch: playerSearch, overridePage: 1 });
+                }}
               >
                 Search
               </button>
@@ -420,10 +836,49 @@ export function App({ serviceWorkerState }) {
                     setSelectedPlayer(player);
                     setSelectedOpportunityKey(null);
                     setOpportunityPage(1);
-                    loadOpportunities(player, weapon, animal);
+                    loadOpportunities(player, weapon);
                   }}
                 />
               ))}
+            </div>
+
+            <div className="pagination-bar">
+              <DropdownControl
+                label="Hunters Per Page"
+                value={playerPageSize}
+                options={[10, 25, 50, 100].map((option) => ({
+                  value: option,
+                  label: String(option),
+                }))}
+                onChange={(nextValue) => {
+                  setPlayerPageSize(nextValue);
+                  setPlayerPage(1);
+                }}
+                menuDirection="up"
+              />
+              <p>
+                Page {playersPagination.page} of {playersPagination.totalPages} | {playersPagination.total} total
+              </p>
+              <div className="pagination-actions">
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() => setPlayerPage((page) => Math.max(1, page - 1))}
+                  disabled={playersPagination.page <= 1}
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() =>
+                    setPlayerPage((page) => Math.min(playersPagination.totalPages, page + 1))
+                  }
+                  disabled={playersPagination.page >= playersPagination.totalPages}
+                >
+                  Next
+                </button>
+              </div>
             </div>
           </section>
 
@@ -465,17 +920,24 @@ export function App({ serviceWorkerState }) {
                 <FilterTabs value={weapon} options={weaponOptions} onChange={setWeapon} />
               </div>
 
-              <label className="animal-filter">
-                <span className="eyebrow">Animal</span>
-                <select value={animal} onChange={(event) => setAnimal(event.target.value)}>
-                  <option value="all">All Animals</option>
-                  {animals.map((animalName) => (
-                    <option key={animalName} value={animalName.toLowerCase()}>
-                      {animalName}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <DropdownControl
+                label="Adventure"
+                value={animal}
+                options={[
+                  { value: "all", label: "All Adventures" },
+                  ...animals.map((animalName) => ({
+                    value: animalName.toLowerCase(),
+                    label: animalName,
+                  })),
+                ]}
+                onChange={(nextValue) => {
+                  setAnimal(nextValue);
+                  setOpportunityPage(1);
+                  setSelectedOpportunityKey(null);
+                }}
+                width="wide"
+                menuDirection="down"
+              />
             </div>
 
             {opportunities.length === 0 ? (
@@ -498,25 +960,40 @@ export function App({ serviceWorkerState }) {
                 </div>
 
                 <div className="pagination-bar">
-                  <button
-                    type="button"
-                    className="ghost-button"
-                    onClick={() => setOpportunityPage((page) => Math.max(1, page - 1))}
-                    disabled={currentPage <= 1}
-                  >
-                    Previous
-                  </button>
+                  <DropdownControl
+                    label="Treks Per Page"
+                    value={opportunityPageSize}
+                    options={[10, 25, 50, 100].map((option) => ({
+                      value: option,
+                      label: String(option),
+                    }))}
+                    onChange={(nextValue) => {
+                      setOpportunityPageSize(nextValue);
+                      setOpportunityPage(1);
+                    }}
+                    menuDirection="up"
+                  />
                   <p>
                     Page {currentPage} of {totalPages} | {opportunities.length} total
                   </p>
-                  <button
-                    type="button"
-                    className="ghost-button"
-                    onClick={() => setOpportunityPage((page) => Math.min(totalPages, page + 1))}
-                    disabled={currentPage >= totalPages}
-                  >
-                    Next
-                  </button>
+                  <div className="pagination-actions">
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      onClick={() => setOpportunityPage((page) => Math.max(1, page - 1))}
+                      disabled={currentPage <= 1}
+                    >
+                      Previous
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      onClick={() => setOpportunityPage((page) => Math.min(totalPages, page + 1))}
+                      disabled={currentPage >= totalPages}
+                    >
+                      Next
+                    </button>
+                  </div>
                 </div>
               </>
             )}
@@ -533,6 +1010,13 @@ export function App({ serviceWorkerState }) {
           <Drilldown opportunity={selectedOpportunity} />
         </section>
       </main>
+
+      <RefreshConfirmModal
+        isOpen={isRefreshModalOpen}
+        isStarting={isStartingRefresh}
+        onCancel={() => setIsRefreshModalOpen(false)}
+        onConfirm={startRefresh}
+      />
     </div>
   );
 }

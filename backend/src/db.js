@@ -470,7 +470,7 @@ export async function getLatestSnapshot(db) {
   );
 }
 
-export async function getPlayers(db, snapshotId, search = "") {
+export async function getPlayers(db, snapshotId, search = "", limit = 10, offset = 0) {
   const query = `
     SELECT
       id,
@@ -487,13 +487,28 @@ export async function getPlayers(db, snapshotId, search = "") {
     WHERE snapshot_id = ?
       AND (? = '' OR lower(name) LIKE ? OR lower(location) LIKE ?)
     ORDER BY skill_rank ASC, name ASC
-    LIMIT 50
+    LIMIT ?
+    OFFSET ?
   `;
 
   const searchValue = search.trim().toLowerCase();
   const wildcard = `%${searchValue}%`;
 
-  return db.all(query, [snapshotId, searchValue, wildcard, wildcard]);
+  return db.all(query, [snapshotId, searchValue, wildcard, wildcard, limit, offset]);
+}
+
+export async function countPlayers(db, snapshotId, search = "") {
+  const query = `
+    SELECT COUNT(*) AS total
+    FROM players
+    WHERE snapshot_id = ?
+      AND (? = '' OR lower(name) LIKE ? OR lower(location) LIKE ?)
+  `;
+
+  const searchValue = search.trim().toLowerCase();
+  const wildcard = `%${searchValue}%`;
+  const row = await db.get(query, [snapshotId, searchValue, wildcard, wildcard]);
+  return row?.total ?? 0;
 }
 
 export async function getAllPlayersForSnapshot(db, snapshotId) {

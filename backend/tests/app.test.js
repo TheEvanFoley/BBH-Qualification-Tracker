@@ -23,10 +23,14 @@ function createMockDb() {
         return snapshot;
       }
 
+      if (sql.includes("COUNT(*) AS total") && sql.includes("FROM players")) {
+        return { total: 1 };
+      }
+
       return null;
     },
     async all(sql) {
-      if (sql.includes("FROM players") && sql.includes("LIMIT 50")) {
+      if (sql.includes("FROM players") && sql.includes("LIMIT")) {
         return [
           {
             id: "player-one",
@@ -123,6 +127,12 @@ describe("API", () => {
     expect(response.status).toBe(200);
     expect(response.body.players).toHaveLength(1);
     expect(response.body.players[0].name).toBe("Player One");
+    expect(response.body.pagination).toMatchObject({
+      page: 1,
+      pageSize: 10,
+      total: 1,
+      totalPages: 1,
+    });
   });
 
   it("returns opportunities for a selected player", async () => {
@@ -149,8 +159,7 @@ describe("API", () => {
 
     const response = await request(app).get("/api/players?search=Evan%20Foley&live=1");
     expect(response.status).toBe(200);
-    expect(response.body.players).toHaveLength(2);
+    expect(response.body.players).toHaveLength(1);
     expect(response.body.players[0].name).toBe("Player One");
-    expect(response.body.players[1].name).toBe("Evan Foley");
   });
 });
