@@ -1,4 +1,5 @@
 const keyFor = (animal, weapon, trek) => `${animal}::${weapon}::${trek}`;
+const adventureKeyFor = (animal, weapon) => `${animal}::${weapon}`;
 
 export function slugify(value) {
   return value
@@ -106,6 +107,36 @@ export function buildBenchmarks(runs, playersById = new Map()) {
   return [...benchmarks.values()];
 }
 
+export function buildAdventureOpportunities(opportunities) {
+  const grouped = new Map();
+
+  for (const opportunity of opportunities) {
+    const key = adventureKeyFor(opportunity.animal, opportunity.weapon);
+
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        animal: opportunity.animal,
+        weapon: opportunity.weapon,
+        theoreticalGain: 0,
+        trekCount: 0,
+        treks: [],
+      });
+    }
+
+    const adventure = grouped.get(key);
+    adventure.theoreticalGain += opportunity.theoreticalGain;
+    adventure.trekCount += 1;
+    adventure.treks.push(opportunity);
+  }
+
+  return [...grouped.values()]
+    .map((adventure) => ({
+      ...adventure,
+      treks: [...adventure.treks].sort((left, right) => right.theoreticalGain - left.theoreticalGain),
+    }))
+    .sort((left, right) => right.theoreticalGain - left.theoreticalGain);
+}
+
 export function computeOpportunities({
   playerId,
   runs,
@@ -171,10 +202,13 @@ export function computeOpportunities({
     })
     .sort((left, right) => right.theoreticalGain - left.theoreticalGain);
 
+  const adventureOpportunities = buildAdventureOpportunities(opportunities);
+
   const player = playersById.get(playerId) ?? null;
 
   return {
     player,
     opportunities,
+    adventureOpportunities,
   };
 }

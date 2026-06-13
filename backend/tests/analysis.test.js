@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildAdventureOpportunities,
   buildBenchmarks,
   computeOpportunities,
   createPlayerId,
@@ -51,6 +52,14 @@ describe("analysis helpers", () => {
       benchmarkScore: 17000,
       benchmarkPlayerName: "Benchmark",
     });
+    expect(result.adventureOpportunities).toEqual([
+      expect.objectContaining({
+        animal: "Elk",
+        weapon: "Gun",
+        theoreticalGain: 7000,
+        trekCount: 1,
+      }),
+    ]);
   });
 
   it("supports weapon and animal filters", () => {
@@ -160,5 +169,78 @@ describe("analysis helpers", () => {
         benchmarkPlayerName: "Trevor Gartner",
       },
     ]);
+  });
+
+  it("groups trek opportunities into ranked adventure opportunities", () => {
+    const adventures = buildAdventureOpportunities([
+      { animal: "Elk", weapon: "Gun", trek: "Trek 2", theoreticalGain: 2000 },
+      { animal: "Moose", weapon: "Bow", trek: "Trek 1", theoreticalGain: 3000 },
+      { animal: "Elk", weapon: "Gun", trek: "Trek 1", theoreticalGain: 5000 },
+      { animal: "Elk", weapon: "Gun", trek: "Trek 3", theoreticalGain: 1000 },
+    ]);
+
+    expect(adventures).toEqual([
+      {
+        animal: "Elk",
+        weapon: "Gun",
+        theoreticalGain: 8000,
+        trekCount: 3,
+        treks: [
+          expect.objectContaining({ trek: "Trek 1", theoreticalGain: 5000 }),
+          expect.objectContaining({ trek: "Trek 2", theoreticalGain: 2000 }),
+          expect.objectContaining({ trek: "Trek 3", theoreticalGain: 1000 }),
+        ],
+      },
+      {
+        animal: "Moose",
+        weapon: "Bow",
+        theoreticalGain: 3000,
+        trekCount: 1,
+        treks: [expect.objectContaining({ trek: "Trek 1", theoreticalGain: 3000 })],
+      },
+    ]);
+  });
+
+  it("keeps gun and bow adventures separate when weapon filter is both", () => {
+    const playerId = createPlayerId("Test Player", "Arcade");
+    const players = [{ id: playerId, name: "Test Player" }];
+    const benchmarks = [
+      {
+        animal: "Elk",
+        weapon: "Gun",
+        trek: "Trek 1",
+        bestScore: 10000,
+        benchmarkPlayerId: "gun-benchmark",
+        benchmarkPlayerName: "Gun Benchmark",
+      },
+      {
+        animal: "Elk",
+        weapon: "Bow",
+        trek: "Trek 1",
+        bestScore: 12000,
+        benchmarkPlayerId: "bow-benchmark",
+        benchmarkPlayerName: "Bow Benchmark",
+      },
+    ];
+
+    const result = computeOpportunities({
+      playerId,
+      players,
+      runs: [],
+      benchmarks,
+      weapon: "both",
+    });
+
+    expect(result.adventureOpportunities).toHaveLength(2);
+    expect(result.adventureOpportunities[0]).toMatchObject({
+      animal: "Elk",
+      weapon: "Bow",
+      theoreticalGain: 12000,
+    });
+    expect(result.adventureOpportunities[1]).toMatchObject({
+      animal: "Elk",
+      weapon: "Gun",
+      theoreticalGain: 10000,
+    });
   });
 });

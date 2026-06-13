@@ -56,4 +56,13 @@
  * @property {string} benchmarkPlayerName
  */
 
+/**
+ * @typedef {Object} AdventureOpportunity
+ * @property {string} animal
+ * @property {string} weapon
+ * @property {number} theoreticalGain
+ * @property {number} trekCount
+ * @property {Opportunity[]} treks
+ */
+
 export const MODEL_DOCS = {};

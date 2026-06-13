@@ -323,13 +323,52 @@ button {
   width: min(32rem, 100%);
   display: grid;
   gap: 0.9rem;
+  position: relative;
   padding: 1.25rem;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
   border-radius: 26px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background:
     radial-gradient(circle at top left, rgba(229, 187, 21, 0.12), transparent 45%),
     var(--panel-strong);
   box-shadow: var(--shadow);
+}
+
+.modal-card--scores {
+  width: min(72rem, 100%);
+}
+
+.modal-close-button {
+  position: absolute;
+  top: 0.85rem;
+  right: 0.85rem;
+  width: 2.5rem;
+  min-height: 2.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink-strong);
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+
+.modal-close-button:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.modal-close-button:focus {
+  outline: none;
+  border-color: rgba(229, 187, 21, 0.55);
+  box-shadow: 0 0 0 3px rgba(229, 187, 21, 0.15);
 }
 
 .modal-card h3,
@@ -358,6 +397,59 @@ button {
   gap: 0.75rem;
   justify-content: flex-end;
   flex-wrap: wrap;
+}
+
+.scores-table {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.scores-toolbar {
+  display: flex;
+  gap: 0.85rem;
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.scores-toolbar .dropdown-control {
+  flex: 1 1 11rem;
+  min-width: 11rem;
+}
+
+.scores-toolbar__summary {
+  margin: -0.1rem 0 0;
+  color: var(--ink-soft);
+}
+
+.scores-table__header,
+.scores-table__row {
+  display: grid;
+  grid-template-columns: 1.3fr 0.9fr 0.9fr 1fr;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.scores-table__header {
+  padding: 0 0.35rem;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.scores-table__body {
+  display: grid;
+  gap: 0.55rem;
+  max-height: min(60vh, 34rem);
+  overflow: auto;
+  padding-right: 0.25rem;
+}
+
+.scores-table__row {
+  padding: 0.9rem 1rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .status-tile span,
@@ -642,9 +734,33 @@ button {
   flex: 1 1 170px;
 }
 
+.summary-strip__action {
+  align-self: stretch;
+}
+
 .filters-bar {
   justify-content: space-between;
   align-items: end;
+}
+
+.filters-bar--opportunity-view {
+  justify-content: flex-start;
+}
+
+.subsection-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.subsection-heading h3 {
+  margin: 0.2rem 0 0;
+  font-size: 1.1rem;
+}
+
+.subsection-heading--spaced {
+  margin-top: 0.35rem;
 }
 
 .filter-tabs {
@@ -671,6 +787,103 @@ button {
   display: grid;
   gap: 0.9rem;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.adventure-grid {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.adventure-card {
+  display: grid;
+  gap: 0.85rem;
+  width: 100%;
+  padding: 1rem;
+  text-align: left;
+  color: inherit;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top right, rgba(229, 187, 21, 0.16), transparent 36%),
+    rgba(11, 21, 31, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.adventure-card.is-active {
+  border-color: rgba(229, 187, 21, 0.45);
+  box-shadow:
+    inset 0 0 0 1px rgba(229, 187, 21, 0.18),
+    0 16px 32px rgba(0, 0, 0, 0.18);
+}
+
+.adventure-card__header {
+  display: flex;
+  gap: 0.8rem;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.adventure-card__header h3 {
+  margin: 0.25rem 0 0;
+  font-size: 1.45rem;
+}
+
+.adventure-card__meta {
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+
+.adventure-card__treks {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.adventure-trek-pill {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.adventure-trek-pill span {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.68);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.adventure-trek-pill strong {
+  font-size: 1rem;
+  color: #fef3c0;
+}
+
+.score-strip--stacked {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.detail-card--span-2 {
+  grid-column: span 2;
+}
+
+.detail-table {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.detail-table__row {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.9rem 1rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.detail-table__row span {
+  color: var(--ink-soft);
 }
 
 .opportunity-card {
@@ -772,6 +985,10 @@ button {
   min-width: 13rem;
 }
 
+.dropdown-control--compact {
+  min-width: 10rem;
+}
+
 .dropdown-control.is-open {
   z-index: 40;
 }
@@ -783,19 +1000,23 @@ button {
 }
 
 .dropdown-control__button {
-  width: 5.25rem;
+  width: 6.75rem;
   min-height: 2.75rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.6rem;
-  padding: 0.65rem 0.9rem;
+  padding: 0.65rem 1rem;
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(6, 14, 22, 0.85);
   color: white;
   text-align: left;
   cursor: pointer;
+}
+
+.dropdown-control--compact .dropdown-control__button {
+  width: 10rem;
 }
 
 .dropdown-control--wide .dropdown-control__button {
@@ -805,13 +1026,16 @@ button {
 .dropdown-control__value {
   min-width: 0;
   flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dropdown-control__arrow {
   flex: 0 0 auto;
   width: 0.65rem;
   height: 0.65rem;
-  margin-right: 0.05rem;
+  margin-left: auto;
   border-right: 2px solid rgba(255, 255, 255, 0.78);
   border-bottom: 2px solid rgba(255, 255, 255, 0.78);
   transform: translateY(-10%) rotate(45deg);
@@ -953,9 +1177,14 @@ button {
   margin-top: 0.35rem;
 }
 
+.empty-panel--inline {
+  padding: 0.85rem 1rem;
+}
+
 @media (max-width: 980px) {
   .hero-card,
   .layout-grid,
+  .adventure-grid,
   .opportunity-grid,
   .detail-grid {
     grid-template-columns: 1fr;
@@ -968,6 +1197,7 @@ button {
 
   .panel-heading,
   .filters-bar,
+  .subsection-heading,
   .detail-panel__hero,
   .topbar {
     flex-direction: column;
@@ -1015,6 +1245,47 @@ button {
 
   .search-panel {
     grid-template-columns: 1fr;
+  }
+
+  .scores-table__header {
+    display: none;
+  }
+
+  .scores-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .scores-toolbar .dropdown-control,
+  .dropdown-control--compact {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .scores-toolbar .dropdown-control .dropdown-control__button,
+  .dropdown-control--compact .dropdown-control__button {
+    width: 100%;
+  }
+
+  .scores-table__row {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+
+  .scores-table__row [data-label]::before {
+    content: attr(data-label) ": ";
+    color: rgba(255, 255, 255, 0.68);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.72rem;
+  }
+
+  .adventure-card__treks {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-card--span-2 {
+    grid-column: auto;
   }
 
   .dropdown-control--wide {

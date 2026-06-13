@@ -344,7 +344,9 @@ export function createApp(db) {
     response.json({
       snapshot,
       player,
+      runs,
       opportunities: result.opportunities,
+      adventureOpportunities: result.adventureOpportunities,
     });
   });
 

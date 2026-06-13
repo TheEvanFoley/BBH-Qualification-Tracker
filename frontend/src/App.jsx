@@ -7,6 +7,11 @@ const weaponOptions = [
   { value: "bow", label: "Bow" },
 ];
 
+const opportunityViewOptions = [
+  { value: "adventures", label: "Adventures" },
+  { value: "treks", label: "Treks" },
+];
+
 function formatNumber(value) {
   return new Intl.NumberFormat("en-US").format(value ?? 0);
 }
@@ -193,12 +198,12 @@ function OpportunityCard({ opportunity, isActive, onSelect }) {
   );
 }
 
-function Drilldown({ opportunity }) {
+function TrekDrilldown({ opportunity }) {
   if (!opportunity) {
     return (
       <div className="empty-panel empty-panel--detail">
-        Tap a trek row from the Skills Score Breakdown table to compare counted scores against the
-        current top hunter.
+        Switch to the Treks view and tap a trek card to compare counted scores against the current
+        top hunter.
       </div>
     );
   }
@@ -264,6 +269,280 @@ function Drilldown({ opportunity }) {
             ))}
           </div>
           <span>Best single-run benchmark highlighted in orange.</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AdventureOpportunityCard({ opportunity, isActive, onSelect }) {
+  return (
+    <button
+      type="button"
+      className={`adventure-card ${isActive ? "is-active" : ""}`}
+      onClick={onSelect}
+    >
+      <div className="adventure-card__header">
+        <div>
+          <p className="eyebrow">{opportunity.weapon}</p>
+          <h3>{opportunity.animal}</h3>
+        </div>
+        <div className="gain-badge">
+          <span>Adventure Gain</span>
+          <strong>{formatNumber(opportunity.theoreticalGain)}</strong>
+        </div>
+      </div>
+
+      <p className="adventure-card__meta">
+        Sum of each trek&apos;s gap between the top hunter&apos;s best score and your 3rd-best
+        counted score.
+      </p>
+
+      <div className="adventure-card__treks">
+        {opportunity.treks.map((trek) => (
+          <div key={`${opportunity.animal}-${opportunity.weapon}-${trek.trek}`} className="adventure-trek-pill">
+            <span>{trek.trek}</span>
+            <strong>{formatNumber(trek.theoreticalGain)}</strong>
+          </div>
+        ))}
+      </div>
+    </button>
+  );
+}
+
+function AdventureDrilldown({ opportunity }) {
+  if (!opportunity) {
+    return (
+      <div className="empty-panel empty-panel--detail">
+        Tap an adventure card to compare its three trek gaps and total upside.
+      </div>
+    );
+  }
+
+  const selectedHunterName = opportunity.treks[0]?.selectedPlayerName ?? "Selected Hunter";
+
+  return (
+    <div className="detail-panel">
+      <div className="detail-panel__hero">
+        <div>
+          <p className="eyebrow">{opportunity.weapon}</p>
+          <h2>{opportunity.animal}</h2>
+        </div>
+        <div className="gain-badge gain-badge--hero">
+          <span>Adventure Gain</span>
+          <strong>{formatNumber(opportunity.theoreticalGain)}</strong>
+        </div>
+      </div>
+
+      <div className="detail-grid">
+        <div className="detail-card">
+          <p className="detail-card__label">How Adventure Gain Works</p>
+          <div className="detail-card__name">{`${opportunity.animal} / ${opportunity.weapon}`}</div>
+          <strong>{formatNumber(opportunity.theoreticalGain)}</strong>
+          <span>Sum of the three trek gaps for this adventure.</span>
+        </div>
+
+        <div className="detail-card">
+          <p className="detail-card__label">Trek Gaps</p>
+          <div className="detail-card__name">{`${opportunity.animal} / ${opportunity.weapon}`}</div>
+          <div className="score-strip score-strip--stacked">
+            {opportunity.treks.map((trek) => (
+              <span key={`${opportunity.animal}-${opportunity.weapon}-${trek.trek}`} className="score-pill">
+                {`${trek.trek}: ${formatNumber(trek.theoreticalGain)}`}
+              </span>
+            ))}
+          </div>
+          <span>Each gap is top hunter best score minus your 3rd-best counted score.</span>
+        </div>
+
+        <div className="detail-card detail-card--span-2">
+          <p className="detail-card__label">Ranked Trek Breakdown</p>
+          <div className="detail-table">
+            {opportunity.treks.map((trek) => (
+              <div key={`${opportunity.animal}-${opportunity.weapon}-${trek.trek}-detail`} className="detail-table__row">
+                <strong>{trek.trek}</strong>
+                <span>{`${selectedHunterName} 3rd Best: ${formatNumber(trek.playerThirdBestScore)}`}</span>
+                <span>{`Top Score: ${formatNumber(trek.benchmarkScore)}`}</span>
+                <span>{`Gap: ${formatNumber(trek.theoreticalGain)}`}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PlayerScoresModal({ isOpen, player, runs, onClose }) {
+  const [scoreAnimal, setScoreAnimal] = useState("all");
+  const [scoreWeapon, setScoreWeapon] = useState("all");
+  const [scoreTrek, setScoreTrek] = useState("all");
+
+  const animals = useMemo(
+    () => [...new Set(runs.map((run) => run.animal))].sort(),
+    [runs],
+  );
+
+  const weapons = useMemo(() => {
+    const filteredByAnimal =
+      scoreAnimal === "all" ? runs : runs.filter((run) => run.animal === scoreAnimal);
+
+    return [...new Set(filteredByAnimal.map((run) => run.weapon))].sort();
+  }, [runs, scoreAnimal]);
+
+  const treks = useMemo(() => {
+    const filtered = runs.filter((run) => {
+      if (scoreAnimal !== "all" && run.animal !== scoreAnimal) {
+        return false;
+      }
+
+      if (scoreWeapon !== "all" && run.weapon !== scoreWeapon) {
+        return false;
+      }
+
+      return true;
+    });
+
+    return [...new Set(filtered.map((run) => run.trek))].sort();
+  }, [runs, scoreAnimal, scoreWeapon]);
+
+  const filteredRuns = useMemo(
+    () =>
+      runs.filter((run) => {
+        if (scoreAnimal !== "all" && run.animal !== scoreAnimal) {
+          return false;
+        }
+
+        if (scoreWeapon !== "all" && run.weapon !== scoreWeapon) {
+          return false;
+        }
+
+        if (scoreTrek !== "all" && run.trek !== scoreTrek) {
+          return false;
+        }
+
+        return true;
+      }),
+    [runs, scoreAnimal, scoreWeapon, scoreTrek],
+  );
+
+  useEffect(() => {
+    if (scoreAnimal !== "all" && !animals.includes(scoreAnimal)) {
+      setScoreAnimal("all");
+    }
+  }, [animals, scoreAnimal]);
+
+  useEffect(() => {
+    if (scoreWeapon !== "all" && !weapons.includes(scoreWeapon)) {
+      setScoreWeapon("all");
+    }
+  }, [weapons, scoreWeapon]);
+
+  useEffect(() => {
+    if (scoreTrek !== "all" && !treks.includes(scoreTrek)) {
+      setScoreTrek("all");
+    }
+  }, [treks, scoreTrek]);
+
+  if (!isOpen || !player) {
+    return null;
+  }
+
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <div
+        className="modal-card modal-card--scores"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="scores-modal-title"
+      >
+        <button
+          type="button"
+          className="modal-close-button"
+          aria-label="Close score table"
+          onClick={onClose}
+        >
+          X
+        </button>
+        <p className="eyebrow">Hunter Scores</p>
+        <h3 id="scores-modal-title">{`${player.name} Score Table`}</h3>
+        <p>
+          All saved runs for this hunter in the current snapshot, shown without benchmark
+          comparison.
+        </p>
+
+        <div className="scores-toolbar">
+          <DropdownControl
+            label="Adventure"
+            value={scoreAnimal}
+            options={[
+              { value: "all", label: "All Adventures" },
+              ...animals.map((animal) => ({ value: animal, label: animal })),
+            ]}
+            onChange={setScoreAnimal}
+            width="wide"
+            menuDirection="down"
+          />
+          <DropdownControl
+            label="Weapon"
+            value={scoreWeapon}
+            options={[
+              { value: "all", label: "All Weapons" },
+              ...weapons.map((weapon) => ({ value: weapon, label: weapon })),
+            ]}
+            onChange={setScoreWeapon}
+            width="compact"
+            menuDirection="down"
+          />
+          <DropdownControl
+            label="Trek"
+            value={scoreTrek}
+            options={[
+              { value: "all", label: "All Treks" },
+              ...treks.map((trek) => ({ value: trek, label: trek })),
+            ]}
+            onChange={setScoreTrek}
+            width="compact"
+            menuDirection="down"
+          />
+        </div>
+
+        <p className="scores-toolbar__summary">
+          {`${filteredRuns.length} run${filteredRuns.length === 1 ? "" : "s"} shown`}
+        </p>
+
+        <div className="scores-table" role="table" aria-label={`${player.name} scores`}>
+          <div className="scores-table__header" role="row">
+            <span role="columnheader">Adventure</span>
+            <span role="columnheader">Weapon</span>
+            <span role="columnheader">Trek</span>
+            <span role="columnheader">Score</span>
+          </div>
+
+          <div className="scores-table__body">
+            {filteredRuns.length === 0 ? (
+              <p className="empty-panel">No saved runs are available for this hunter yet.</p>
+            ) : (
+              filteredRuns.map((run, index) => (
+                <div
+                  key={`${run.animal}-${run.weapon}-${run.trek}-${run.score}-${run.runRank ?? index}`}
+                  className="scores-table__row"
+                  role="row"
+                >
+                  <span data-label="Adventure" role="cell">{run.animal}</span>
+                  <span data-label="Weapon" role="cell">{run.weapon}</span>
+                  <span data-label="Trek" role="cell">{run.trek}</span>
+                  <strong data-label="Score" role="cell">{formatNumber(run.score)}</strong>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="modal-actions">
+          <button type="button" className="primary-button" onClick={onClose}>
+            Close
+          </button>
         </div>
       </div>
     </div>
@@ -563,10 +842,15 @@ export function App() {
   });
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [allOpportunities, setAllOpportunities] = useState([]);
+  const [allAdventureOpportunities, setAllAdventureOpportunities] = useState([]);
+  const [allRuns, setAllRuns] = useState([]);
+  const [selectedAdventureKey, setSelectedAdventureKey] = useState(null);
   const [selectedOpportunityKey, setSelectedOpportunityKey] = useState(null);
+  const [isScoresModalOpen, setIsScoresModalOpen] = useState(false);
   const [playerSearch, setPlayerSearch] = useState("");
   const [weapon, setWeapon] = useState("both");
   const [animal, setAnimal] = useState("all");
+  const [opportunityView, setOpportunityView] = useState("adventures");
   const [playerPage, setPlayerPage] = useState(1);
   const [playerPageSize, setPlayerPageSize] = useState(10);
   const [opportunityPage, setOpportunityPage] = useState(1);
@@ -608,6 +892,27 @@ export function App() {
     return allOpportunities.filter((item) => item.animal.toLowerCase() === animal);
   }, [allOpportunities, animal]);
 
+  const adventureOpportunities = useMemo(() => {
+    if (animal === "all") {
+      return allAdventureOpportunities;
+    }
+
+    return allAdventureOpportunities.filter((item) => item.animal.toLowerCase() === animal);
+  }, [allAdventureOpportunities, animal]);
+
+  const sortedRuns = useMemo(
+    () =>
+      [...allRuns].sort(
+        (left, right) =>
+          left.animal.localeCompare(right.animal) ||
+          left.weapon.localeCompare(right.weapon) ||
+          left.trek.localeCompare(right.trek) ||
+          (right.score ?? 0) - (left.score ?? 0) ||
+          (left.runRank ?? Number.MAX_SAFE_INTEGER) - (right.runRank ?? Number.MAX_SAFE_INTEGER),
+      ),
+    [allRuns],
+  );
+
   const totalPages = Math.max(1, Math.ceil(opportunities.length / opportunityPageSize));
   const currentPage = Math.min(opportunityPage, totalPages);
   const visibleOpportunities = useMemo(() => {
@@ -616,17 +921,44 @@ export function App() {
   }, [currentPage, opportunities, opportunityPageSize]);
 
   const selectedOpportunity =
-    opportunities.find(
-      (item) => `${item.animal}::${item.weapon}::${item.trek}` === selectedOpportunityKey,
-    ) ?? opportunities[0] ?? null;
+    opportunityView !== "treks"
+      ? null
+      : (opportunities.find(
+          (item) => `${item.animal}::${item.weapon}::${item.trek}` === selectedOpportunityKey,
+        ) ?? opportunities[0] ?? null);
+
+  const selectedAdventureOpportunity =
+    opportunityView !== "adventures"
+      ? null
+      : (adventureOpportunities.find(
+          (item) => `${item.animal}::${item.weapon}` === selectedAdventureKey,
+        ) ?? adventureOpportunities[0] ?? null);
 
   useEffect(() => {
+    if (opportunityView !== "treks") {
+      setSelectedOpportunityKey(null);
+      return;
+    }
+
     if (selectedOpportunity) {
       setSelectedOpportunityKey(
         `${selectedOpportunity.animal}::${selectedOpportunity.weapon}::${selectedOpportunity.trek}`,
       );
     }
-  }, [selectedOpportunity]);
+  }, [opportunityView, selectedOpportunity]);
+
+  useEffect(() => {
+    if (opportunityView !== "adventures") {
+      setSelectedAdventureKey(null);
+      return;
+    }
+
+    if (selectedAdventureOpportunity) {
+      setSelectedAdventureKey(
+        `${selectedAdventureOpportunity.animal}::${selectedAdventureOpportunity.weapon}`,
+      );
+    }
+  }, [opportunityView, selectedAdventureOpportunity]);
 
   async function loadPlayers({
     live = false,
@@ -676,7 +1008,11 @@ export function App() {
       startTransition(() => {
         setSnapshot(data.snapshot);
         setSelectedPlayer(data.player);
+        setIsScoresModalOpen(false);
+        setAllRuns(data.runs ?? []);
         setAllOpportunities(data.opportunities);
+        setAllAdventureOpportunities(data.adventureOpportunities ?? []);
+        setSelectedAdventureKey(null);
         setOpportunityPage(1);
         setSelectedOpportunityKey(null);
         setOpportunitiesMessage(
@@ -686,7 +1022,10 @@ export function App() {
         );
       });
     } catch (error) {
+      setAllRuns([]);
       setAllOpportunities([]);
+      setAllAdventureOpportunities([]);
+      setSelectedAdventureKey(null);
       setOpportunitiesMessage(error.message);
     }
   }
@@ -885,6 +1224,10 @@ export function App() {
               that trek&apos;s top hunter&apos;s best score. That makes it easier to spot where a
               hunter has the most points to gain by attempting that trek again.
             </p>
+            <p>
+              Adventure gain rolls those three trek gaps together for one animal and weapon so it
+              is easier to spot the highest-upside full adventures.
+            </p>
           </div>
 
           <div className="hero-card__status">
@@ -966,6 +1309,7 @@ export function App() {
                   isActive={selectedPlayer?.id === player.id}
                   onSelect={() => {
                     setSelectedPlayer(player);
+                    setIsScoresModalOpen(false);
                     setSelectedOpportunityKey(null);
                     setOpportunityPage(1);
                     loadOpportunities(player, weapon);
@@ -1043,6 +1387,13 @@ export function App() {
                   tone="orange"
                 />
                 <StatChip label="Location" value={selectedPlayer.location} />
+                <button
+                  type="button"
+                  className="primary-button summary-strip__action"
+                  onClick={() => setIsScoresModalOpen(true)}
+                >
+                  View Scores
+                </button>
               </div>
             ) : null}
 
@@ -1072,10 +1423,61 @@ export function App() {
               />
             </div>
 
+            <div className="filters-bar filters-bar--opportunity-view">
+              <div>
+                <p className="eyebrow">Opportunity View</p>
+                <FilterTabs
+                  value={opportunityView}
+                  options={opportunityViewOptions}
+                  onChange={setOpportunityView}
+                />
+              </div>
+            </div>
+
             {opportunities.length === 0 ? (
               <p className="empty-panel">{opportunitiesMessage}</p>
+            ) : opportunityView === "adventures" ? (
+              <>
+                <div className="subsection-heading">
+                  <div>
+                    <p className="eyebrow">Adventure Opportunities</p>
+                    <h3>Best full-adventure score gains</h3>
+                  </div>
+                </div>
+
+                <p className="empty-panel empty-panel--inline">
+                  Adventure gain is the sum of the three trek gaps for this animal and weapon.
+                </p>
+
+                <div className="adventure-grid">
+                  {adventureOpportunities.map((opportunity) => (
+                    <AdventureOpportunityCard
+                      key={`${opportunity.animal}::${opportunity.weapon}`}
+                      opportunity={opportunity}
+                      isActive={
+                        selectedAdventureKey === `${opportunity.animal}::${opportunity.weapon}`
+                      }
+                      onSelect={() =>
+                        setSelectedAdventureKey(`${opportunity.animal}::${opportunity.weapon}`)
+                      }
+                    />
+                  ))}
+                </div>
+              </>
             ) : (
               <>
+                <div className="subsection-heading">
+                  <div>
+                    <p className="eyebrow">Trek Opportunities</p>
+                    <h3>Best single-trek score gains</h3>
+                  </div>
+                </div>
+
+                <p className="empty-panel empty-panel--inline">
+                  Trek gain is the top hunter&apos;s best score minus your 3rd-best counted score
+                  on that trek.
+                </p>
+
                 <div className="opportunity-grid">
                   {visibleOpportunities.map((opportunity) => {
                     const key = `${opportunity.animal}::${opportunity.weapon}::${opportunity.trek}`;
@@ -1136,10 +1538,14 @@ export function App() {
           <div className="panel-heading">
             <div>
               <p className="eyebrow">Drilldown</p>
-              <h2>Trek Details</h2>
+              <h2>{opportunityView === "adventures" ? "Adventure Details" : "Trek Details"}</h2>
             </div>
           </div>
-          <Drilldown opportunity={selectedOpportunity} />
+          {opportunityView === "adventures" ? (
+            <AdventureDrilldown opportunity={selectedAdventureOpportunity} />
+          ) : (
+            <TrekDrilldown opportunity={selectedOpportunity} />
+          )}
         </section>
       </main>
 
@@ -1153,6 +1559,12 @@ export function App() {
         isOpen={isInstallHelpOpen}
         installState={installState}
         onClose={() => setIsInstallHelpOpen(false)}
+      />
+      <PlayerScoresModal
+        isOpen={isScoresModalOpen}
+        player={selectedPlayer}
+        runs={sortedRuns}
+        onClose={() => setIsScoresModalOpen(false)}
       />
     </div>
   );
