@@ -138,8 +138,17 @@ describe("API", () => {
   it("returns opportunities for a selected player", async () => {
     const response = await request(app).get("/api/player/player-one/opportunities");
     expect(response.status).toBe(200);
+    expect(response.body.runs).toHaveLength(3);
     expect(response.body.opportunities).toHaveLength(1);
     expect(response.body.opportunities[0].theoreticalGain).toBe(6000);
+    expect(response.body.adventureOpportunities).toEqual([
+      expect.objectContaining({
+        animal: "Elk",
+        weapon: "Gun",
+        theoreticalGain: 6000,
+        trekCount: 1,
+      }),
+    ]);
   });
 
   it("returns live search results even when they are not already in the local query result", async () => {
