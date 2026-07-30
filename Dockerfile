@@ -11,7 +11,7 @@ COPY frontend ./frontend
 
 ENV NODE_ENV=production
 ENV PORT=3000
-ENV DATABASE_DIR=/data
+ENV DATABASE_DIR=/app/backend/data
 ENV PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
 
 RUN npm run build
