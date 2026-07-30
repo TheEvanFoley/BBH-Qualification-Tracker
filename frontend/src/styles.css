@@ -747,6 +747,10 @@ button {
   justify-content: flex-start;
 }
 
+.filters-bar__group {
+  min-width: 0;
+}
+
 .subsection-heading {
   display: flex;
   align-items: end;
@@ -1223,6 +1227,20 @@ button {
   .refresh-progress__top {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .filters-bar--skill-breakdown .filters-bar__group--adventure {
+    order: -1;
+    width: 100%;
+  }
+
+  .filters-bar--skill-breakdown .filters-bar__group--weapon {
+    width: 100%;
+  }
+
+  .filters-bar--skill-breakdown .filters-bar__group--adventure .dropdown-control__menu--down {
+    top: auto;
+    bottom: calc(100% + 0.4rem);
   }
 }
 

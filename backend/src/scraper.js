@@ -3,26 +3,72 @@ import { createPlayerId, toFloat, toInt } from "./analysis.js";
 
 const BASE_URL = "https://www.bigbuckhunter.com/world/qualifiers";
 const PAGE_SIZE = 100;
-const ADVENTURES = [
-  { id: "10100", animal: "Whitetail" },
-  { id: "10200", animal: "Elk" },
-  { id: "10300", animal: "Kudu" },
-  { id: "10400", animal: "Moose" },
-  { id: "10500", animal: "Wildebeest" },
-  { id: "10600", animal: "Gemsbok" },
-  { id: "10700", animal: "Bighorn Sheep" },
-  { id: "10800", animal: "Irish Elk" },
-  { id: "10900", animal: "Buckzilla" },
-  { id: "11000", animal: "Zombie Deer" },
-  { id: "11100", animal: "Caribou" },
-];
-const BENCHMARK_TARGETS = ADVENTURES.length * 3;
 const SHORT_PAGE_RETRY_LIMIT = 3;
 
 function reportProgress(onProgress, update) {
   if (typeof onProgress === "function") {
     onProgress(update);
   }
+}
+
+export function parseAdventureOptions(options) {
+  return options
+    .filter((option) => option.value && option.value !== "qualifiers")
+    .map((option) => ({
+      id: option.value,
+      animal: option.label,
+    }));
+}
+
+export function validateBenchmarksCoverage(benchmarks, adventures) {
+  const benchmarkKeys = new Set(
+    benchmarks.map((benchmark) => `${benchmark.animal}::${benchmark.weapon}::${benchmark.trek}`),
+  );
+  const missing = [];
+
+  for (const adventure of adventures) {
+    for (const weapon of ["Gun", "Bow"]) {
+      for (const trekNumber of [1, 2, 3]) {
+        const trek = `Trek ${trekNumber}`;
+        const key = `${adventure.animal}::${weapon}::${trek}`;
+
+        if (!benchmarkKeys.has(key)) {
+          missing.push({ animal: adventure.animal, weapon, trek });
+        }
+      }
+    }
+  }
+
+  if (missing.length > 0) {
+    const preview = missing
+      .slice(0, 6)
+      .map((item) => `${item.animal} ${item.weapon} ${item.trek}`)
+      .join(", ");
+    const remainder = missing.length > 6 ? ` (+${missing.length - 6} more)` : "";
+
+    throw new Error(
+      `Benchmark scrape is incomplete. Missing ${missing.length} trek benchmarks: ${preview}${remainder}.`,
+    );
+  }
+}
+
+async function loadAdventures(page) {
+  await page.goto(BASE_URL, { waitUntil: "networkidle" });
+  await page.waitForSelector(".leaderboard-subnav-selector option");
+
+  const options = await page.$$eval(".leaderboard-subnav-selector option", (nodes) =>
+    nodes.map((node) => ({
+      value: node.getAttribute("value")?.trim() ?? "",
+      label: node.textContent?.trim() ?? "",
+    })),
+  );
+
+  const adventures = parseAdventureOptions(options);
+  if (adventures.length === 0) {
+    throw new Error("No adventures were found on the qualifiers page.");
+  }
+
+  return adventures;
 }
 
 async function parsePlayerSummary(page) {
@@ -303,14 +349,16 @@ async function scrapeBenchmarks(page, { onProgress = null } = {}) {
   const benchmarks = [];
   const cachedScoreRuns = new Map();
   let processedTargets = 0;
+  const adventures = await loadAdventures(page);
+  const benchmarkTargets = adventures.length * 3;
 
-  for (const adventure of ADVENTURES) {
+  for (const adventure of adventures) {
     for (const trekNumber of [1, 2, 3]) {
       processedTargets += 1;
       reportProgress(onProgress, {
         phase: "benchmarks",
         processedTargets,
-        totalTargets: BENCHMARK_TARGETS,
+        totalTargets: benchmarkTargets,
         animal: adventure.animal,
         trek: `Trek ${trekNumber}`,
         message: `Benchmarking ${adventure.animal} Trek ${trekNumber}...`,
@@ -362,6 +410,7 @@ async function scrapeBenchmarks(page, { onProgress = null } = {}) {
     }
   }
 
+  validateBenchmarksCoverage(benchmarks, adventures);
   return benchmarks;
 }
 

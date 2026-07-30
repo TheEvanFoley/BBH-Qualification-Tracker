@@ -1397,30 +1397,32 @@ export function App() {
               </div>
             ) : null}
 
-            <div className="filters-bar">
-              <div>
+            <div className="filters-bar filters-bar--skill-breakdown">
+              <div className="filters-bar__group filters-bar__group--weapon">
                 <p className="eyebrow">Weapon</p>
                 <FilterTabs value={weapon} options={weaponOptions} onChange={setWeapon} />
               </div>
 
-              <DropdownControl
-                label="Adventure"
-                value={animal}
-                options={[
-                  { value: "all", label: "All Adventures" },
-                  ...animals.map((animalName) => ({
-                    value: animalName.toLowerCase(),
-                    label: animalName,
-                  })),
-                ]}
-                onChange={(nextValue) => {
-                  setAnimal(nextValue);
-                  setOpportunityPage(1);
-                  setSelectedOpportunityKey(null);
-                }}
-                width="wide"
-                menuDirection="down"
-              />
+              <div className="filters-bar__group filters-bar__group--adventure">
+                <DropdownControl
+                  label="Adventure"
+                  value={animal}
+                  options={[
+                    { value: "all", label: "All Adventures" },
+                    ...animals.map((animalName) => ({
+                      value: animalName.toLowerCase(),
+                      label: animalName,
+                    })),
+                  ]}
+                  onChange={(nextValue) => {
+                    setAnimal(nextValue);
+                    setOpportunityPage(1);
+                    setSelectedOpportunityKey(null);
+                  }}
+                  width="wide"
+                  menuDirection="down"
+                />
+              </div>
             </div>
 
             <div className="filters-bar filters-bar--opportunity-view">
