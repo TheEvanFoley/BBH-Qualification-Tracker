@@ -3,7 +3,8 @@ FROM node:20-bookworm
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci --build-from-source
+RUN npm ci
+RUN npm rebuild sqlite3 --build-from-source
 RUN npx playwright install --with-deps chromium
 
 COPY backend ./backend
