@@ -54,7 +54,7 @@ export function validateBenchmarksCoverage(benchmarks, adventures) {
 
 async function loadAdventures(page) {
   await page.goto(BASE_URL, { waitUntil: "networkidle" });
-  await page.waitForSelector(".leaderboard-subnav-selector option");
+  await page.locator(".leaderboard-subnav-selector").waitFor({ state: "attached" });
 
   const options = await page.$$eval(".leaderboard-subnav-selector option", (nodes) =>
     nodes.map((node) => ({
